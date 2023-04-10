@@ -4,7 +4,7 @@ use inquire::Text;
 
 use crate::models::{Book, Response};
 
-const API_KEY: &str = "AIzaSyDw6fJHKUVUaLwTNbpVLmFUoa8KNeELXtQ";
+const GOOGLE_API_KEY: &str = "AIzaSyDw6fJHKUVUaLwTNbpVLmFUoa8KNeELXtQ";
 
 pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::Error>> {
     let mut books = HashMap::new();
@@ -17,7 +17,7 @@ pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::
 
             let url = format!(
                 "https://www.googleapis.com/books/v1/volumes?q={}&key={}",
-                book_query, API_KEY
+                book_query, GOOGLE_API_KEY
             );
 
             let response_text = reqwest::get(&url).await?.text().await?;
@@ -44,3 +44,5 @@ pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::
 
     Ok(books)
 }
+
+// pub async fn book_download(book: &Book) -> Result<(), Box<dyn std::error::Error>> {}

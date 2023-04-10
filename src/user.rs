@@ -1,7 +1,7 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use crate::models::Book;
+use crate::{models::Book, libgen_util::libgen_book_download};
 use inquire::MultiSelect;
 use serde::{Deserialize, Serialize};
 
@@ -13,7 +13,7 @@ pub struct User {
 }
 
 impl User {
-    pub fn select_books(
+    pub fn add_books(
         &mut self,
         books: HashMap<String, Book>,
     ) -> Result<(), Box<dyn std::error::Error>> {
@@ -22,9 +22,24 @@ impl User {
             MultiSelect::new("Select books to add to your collection:", select_items).prompt()?;
         for book in selected_books {
             if let Some(book) = books.get(&book.id) {
-                println!("You selected: {}: {}", &book.id, book.volume_info);
+                // println!("You selected: {}: {}", &book.id, book.volume_info);
                 self.collection.push(book.clone());
             }
+        }
+
+        Ok(())
+    }
+
+    pub async fn download_books(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.collection.is_empty() {
+            let selected_books =
+                MultiSelect::new("Select books to download:", self.collection.clone()).prompt()?;
+
+            for book in selected_books {
+                libgen_book_download(book).await?;
+            }
+        } else {
+            println!("No books in your collection to download");
         }
 
         Ok(())

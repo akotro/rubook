@@ -2,6 +2,8 @@ mod book_util;
 mod menu;
 mod models;
 mod user;
+mod libgen;
+mod libgen_util;
 
 use inquire::Text;
 
