@@ -1,9 +1,11 @@
 use core::fmt;
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
-use crate::{models::Book, libgen_util::libgen_book_download};
-use inquire::MultiSelect;
+use crate::{libgen_util::libgen_book_download, models::Book, libgen::mirrors::Mirror};
+use inquire::{MultiSelect, Select};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use tokio::task::JoinHandle;
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
@@ -30,14 +32,16 @@ impl User {
         Ok(())
     }
 
-    pub async fn download_books(&mut self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn download_books(
+        &mut self,
+        client: Arc<Client>,
+        mirror_handles: Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
         if !self.collection.is_empty() {
-            let selected_books =
-                MultiSelect::new("Select books to download:", self.collection.clone()).prompt()?;
+            let selected_book =
+                Select::new("Select books to download:", self.collection.clone()).prompt()?;
 
-            for book in selected_books {
-                libgen_book_download(book).await?;
-            }
+            libgen_book_download(selected_book, client, mirror_handles).await?;
         } else {
             println!("No books in your collection to download");
         }

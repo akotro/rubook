@@ -24,13 +24,55 @@ pub async fn download_book(
     mirror: &Mirror,
     book: &LibgenBook,
 ) -> Result<reqwest::Response, &'static str> {
-    println!("mirror: {:?}", mirror);
     let download_page_url_md5 =
         mirror
         .download_pattern
         .as_ref()
         .unwrap()
         .replace("{md5}", &book.md5);
+    let download_page_url = Url::parse(&download_page_url_md5).unwrap();
+
+    let content = client
+        .get(download_page_url)
+        .send()
+        .await
+        .or(Err("Couldn't connect to mirror"))?
+        .bytes()
+        .await
+        .or(Err("Couldn't get mirror page"))?;
+
+    match mirror.host_url.as_str() {
+        "https://libgen.rocks/" => match download_book_from_ads(&content, mirror, client).await {
+            Ok(b) => Ok(b),
+            Err(_e) => Err("Download error"),
+        },
+        "http://libgen.lc/" => match download_book_from_ads(&content, mirror, client).await {
+            Ok(b) => Ok(b),
+            Err(_e) => Err("Download error"),
+        },
+        "http://libgen.lol/" => match download_book_from_lol(&content, mirror, client).await {
+            Ok(b) => Ok(b),
+            Err(_e) => Err("Download error"),
+        },
+        "http://libgen.me/" => match download_book_from_lol(&content, mirror, client).await {
+            Ok(b) => Ok(b),
+            Err(_e) => Err("Download error"),
+        },
+        &_ => Err("Couldn't find download url"),
+    }
+}
+
+pub async fn download_book_fiction(
+    client: &Client,
+    mirror: &Mirror,
+    md5: &String,
+) -> Result<reqwest::Response, &'static str> {
+    let download_page_url_md5 =
+        mirror
+        .download_pattern
+        .as_ref()
+        .unwrap()
+        .replace("{md5}", &md5);
     let download_page_url = Url::parse(&download_page_url_md5).unwrap();
 
     let content = client

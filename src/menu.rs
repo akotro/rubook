@@ -1,7 +1,3 @@
-use inquire::Select;
-
-use crate::{book_util::book_search, user::User};
-
 #[derive(Debug)]
 pub enum MenuOption {
     SearchForBook,
@@ -21,7 +17,18 @@ impl std::fmt::Display for MenuOption {
     }
 }
 
-pub async fn menu(user: &mut User) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn menu(user: &mut crate::user::User) -> Result<(), Box<dyn std::error::Error>> {
+    let client = reqwest::Client::builder()
+        .danger_accept_invalid_certs(true)
+        .build()
+        .expect("Could not build reqwest client");
+    let client = std::sync::Arc::new(client);
+
+    let mirrors = crate::libgen_util::parse_mirrors();
+    let mirror_handles = std::sync::Arc::new(mirrors)
+        .spawn_get_working_mirrors_tasks(client)
+        .await;
+
     loop {
         let options = vec![
             MenuOption::SearchForBook,
@@ -29,7 +36,7 @@ pub async fn menu(user: &mut User) -> Result<(), Box<dyn std::error::Error>> {
             MenuOption::DownloadBook,
             MenuOption::Exit,
         ];
-        let selection = Select::new(
+        let selection = inquire::Select::new(
             format!("Hello {}. Select an option:", user.username).as_str(),
             options,
         )
@@ -40,14 +47,21 @@ pub async fn menu(user: &mut User) -> Result<(), Box<dyn std::error::Error>> {
                 MenuOption::Exit => break,
                 MenuOption::ViewCollection => println!("{}", user),
                 MenuOption::SearchForBook => {
-                    let books = book_search().await?;
-                    user.add_books(books)?;
+                    if let Ok(books) = crate::book_util::book_search().await {
+                        if let Err(e) = user.add_books(books) {
+                            eprintln!("Error adding books: {}", e);
+                        }
+                    } else {
+                        eprintln!("Error searching for books");
+                    }
                 }
                 MenuOption::DownloadBook => {
-                    user.download_books().await?;
+                    if let Err(e) = user.download_books().await {
+                        eprintln!("Error downloading books: {}", e);
+                    }
                 }
             },
-            Err(e) => println!("Error: {}", e),
+            Err(e) => eprintln!("Error: {}", e),
         }
     }
 

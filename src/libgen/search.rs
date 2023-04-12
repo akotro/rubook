@@ -13,8 +13,22 @@ lazy_static! {
             .to_string();
 }
 
-pub async fn search(
-    book: Book,
+pub enum SearchType {
+    NonFiction,
+    Fiction,
+}
+
+impl std::fmt::Display for SearchType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SearchType::NonFiction => write!(f, "Non Fiction"),
+            SearchType::Fiction => write!(f, "Fiction"),
+        }
+    }
+}
+
+pub async fn search_non_fiction(
+    book: &Book,
     mirror: &Mirror,
     client: &Client,
 ) -> Result<Vec<LibgenBook>, &'static str> {
@@ -26,15 +40,19 @@ pub async fn search(
             .as_str(),
     )
     .unwrap();
-
     let mut search_query = search_url.query_pairs_mut();
+
     search_query
         .append_pair(
             "req",
             format!(
                 "{} {}",
-                book.volume_info.title.unwrap_or(String::from("")),
-                book.volume_info.authors.unwrap_or(vec![]).join(", ")
+                book.volume_info.clone().title.unwrap_or(String::from("")),
+                book.volume_info
+                    .authors
+                    .clone()
+                    .unwrap_or(vec![])
+                    .join(", ")
             )
             .as_str(),
         )
@@ -57,13 +75,62 @@ pub async fn search(
     Ok(get_books(&book_hashes, &mirror, client).await)
 }
 
+pub async fn search_fiction(
+    book: &Book,
+    mirror: &Mirror,
+    client: &Client,
+) -> Result<String, &'static str> {
+    let mut search_url = Url::parse(
+        mirror
+            .search_url_fiction
+            .as_ref()
+            .expect("Mirror search url fiction is invalid")
+            .as_str(),
+    )
+    .unwrap();
+    let mut search_query = search_url.query_pairs_mut();
+
+    search_query
+        .append_pair(
+            "q",
+            format!(
+                "{} {}",
+                book.volume_info.clone().title.unwrap_or(String::from("")),
+                book.volume_info
+                    .authors
+                    .clone()
+                    .unwrap_or(vec![])
+                    .join(", ")
+            )
+            .as_str(),
+        )
+        .append_pair("criteria", "")
+        .append_pair("language", "English")
+        .append_pair("format", "");
+    let search_url = search_query.finish();
+
+    let content = match get_content(search_url, client).await {
+        Ok(b) => b,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return Err("Failed to get content from page");
+        }
+    };
+
+    let book_hashes = parse_hashes(content);
+    match book_hashes.first() {
+        Some(h) => Ok(h.to_owned()),
+        None => Err("No hash found"),
+    }
+}
+
 async fn get_content(url: &Url, client: &Client) -> Result<Bytes, reqwest::Error> {
     println!("Getting content from: {}", url.as_str());
     client.get(url.as_str()).send().await?.bytes().await
 }
 
 fn parse_hashes(content: Bytes) -> Vec<String> {
-    println!("{}", std::str::from_utf8(content.as_ref()).unwrap().to_string());
+    // println!("{}", std::str::from_utf8(content.as_ref()).unwrap().to_string());
     let mut hashes: Vec<String> = Vec::new();
     for caps in HASH_REGEX.captures_iter(&content) {
         let capture = match caps.get(0) {
@@ -72,7 +139,9 @@ fn parse_hashes(content: Bytes) -> Vec<String> {
         };
         hashes.push(std::str::from_utf8(capture.as_bytes()).unwrap().to_string());
     }
+
     let mut unique_hashes = HashSet::new();
+
     hashes
         .into_iter()
         .filter(|x| unique_hashes.insert(x.clone()))
@@ -84,6 +153,7 @@ async fn get_books(hashes: &[String], mirror: &Mirror, client: &Client) -> Vec<L
     let cover_url = String::from(mirror.cover_pattern.as_ref().unwrap());
 
     for hash in hashes.iter() {
+        println!("hash: {}", hash);
         let mut search_url =
             Url::parse(mirror.sync_url.as_ref().expect("Expected an Url").as_str()).unwrap();
         search_url
@@ -94,7 +164,7 @@ async fn get_books(hashes: &[String], mirror: &Mirror, client: &Client) -> Vec<L
             Ok(v) => v,
             Err(_) => continue,
         };
-        let mut libgen_book: Vec<LibgenBook> =
+        let mut libgen_books: Vec<LibgenBook> =
             match serde_json::from_str(std::str::from_utf8(&content).unwrap()) {
                 Ok(v) => v,
                 Err(_) => {
@@ -102,12 +172,13 @@ async fn get_books(hashes: &[String], mirror: &Mirror, client: &Client) -> Vec<L
                     continue;
                 }
             };
-        libgen_book.iter_mut().for_each(|b| {
+        libgen_books.retain(|b| b.language == "English");
+        libgen_books.iter_mut().for_each(|b| {
             if mirror.cover_pattern.is_some() {
                 b.coverurl = cover_url.replace("{cover-url}", &b.coverurl);
             }
         });
-        parsed_books.append(&mut libgen_book);
+        parsed_books.append(&mut libgen_books);
     }
     parsed_books
 }
