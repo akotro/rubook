@@ -2,39 +2,46 @@
     "libgen.is": {
         "Host": "http://libgen.is/",
         "SearchUrl": "https://libgen.is/search.php",
+        "FictionSearchUrl": "https://libgen.is/fiction",
         "NonFictionCoverUrl": "http://libgen.is/covers/{cover-url}",
         "NonFictionSynchronizationUrl": "http://libgen.is/json.php"
     },
     "libgen.rs": {
         "Host": "http://libgen.rs/",
         "SearchUrl": "https://libgen.rs/search.php",
+        "FictionSearchUrl": "https://libgen.rs/fiction",
         "NonFictionCoverUrl": "http://libgen.rs/covers/{cover-url}",
         "NonFictionSynchronizationUrl": "http://libgen.rs/json.php"
     },
     "libgen.st": {
         "Host": "http://libgen.st/",
         "SearchUrl": "https://libgen.st/search.php",
+        "FictionSearchUrl": "https://libgen.st/fiction",
         "NonFictionCoverUrl": "http://libgen.st/covers/{cover-url}",
         "NonFictionSynchronizationUrl": "http://libgen.st/json.php"
     },
     "library.lol": {
         "Host": "http://libgen.lol/",
         "NonFictionDownloadUrl": "http://library.lol/main/{md5}",
+        "FictionDownloadUrl": "http://library.lol/fiction/{md5}",
         "NonFictionCoverUrl": "http://libgen.rs/covers/{cover-url}",
         "NonFictionSynchronizationUrl": "http://libgen.rs/json.php"
     },
     "libgen.lc": {
         "Host": "http://libgen.lc/",
         "NonFictionDownloadUrl": "http://libgen.lc/get.php?md5={md5}",
+        "FictionDownloadUrl": "http://libgen.lc/get.php?md5={md5}",
         "NonFictionCoverUrl": "http://libgen.lc/covers/{cover-url}",
         "NonFictionSynchronizationUrl": "http://libgen.ls/json.php"
     },
     "libgen.rocks": {
         "Host": "https://libgen.rocks/",
-        "NonFictionDownloadUrl": "https://libgen.rocks/ads.php?md5={md5}"
+        "NonFictionDownloadUrl": "https://libgen.rocks/ads.php?md5={md5}",
+        "FictionDownloadUrl": "https://libgen.rocks/ads.php?md5={md5}"
     },
     "libgen.me": {
         "Host": "https://libgen.me/",
-        "NonFictionDownloadUrl": "https://libgen.me/book/{md5}"
+        "NonFictionDownloadUrl": "https://libgen.me/book/{md5}",
+        "FictionDownloadUrl": "https://libgen.me/book/{md5}"
     }
 }

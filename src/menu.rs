@@ -40,14 +40,21 @@ pub async fn menu(user: &mut User) -> Result<(), Box<dyn std::error::Error>> {
                 MenuOption::Exit => break,
                 MenuOption::ViewCollection => println!("{}", user),
                 MenuOption::SearchForBook => {
-                    let books = book_search().await?;
-                    user.add_books(books)?;
+                    if let Ok(books) = book_search().await {
+                        if let Err(e) = user.add_books(books) {
+                            eprintln!("Error adding books: {}", e);
+                        }
+                    } else {
+                        eprintln!("Error searching for books");
+                    }
                 }
                 MenuOption::DownloadBook => {
-                    user.download_books().await?;
+                    if let Err(e) = user.download_books().await {
+                        eprintln!("Error downloading books: {}", e);
+                    }
                 }
             },
-            Err(e) => println!("Error: {}", e),
+            Err(e) => eprintln!("Error: {}", e),
         }
     }
 

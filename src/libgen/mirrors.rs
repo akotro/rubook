@@ -12,7 +12,9 @@ pub enum MirrorType {
 pub struct Mirror {
     pub host_url: Url,
     pub search_url: Option<Url>,
+    pub search_url_fiction: Option<Url>,
     pub download_url: Option<Url>,
+    pub download_url_fiction: Option<Url>,
     pub download_pattern: Option<String>,
     pub sync_url: Option<Url>,
     pub cover_pattern: Option<String>,
@@ -26,9 +28,16 @@ impl fmt::Display for Mirror {
 
 impl Mirror {
     pub async fn check_connection(&self, client: &Client) -> Result<(), StatusCode> {
-        let response = client.get(self.host_url.as_str()).send();
-        match response.await {
-            Ok(_) => Ok(()),
+        let response = client.get(self.host_url.as_str()).send().await;
+        match response {
+            Ok(res) => {
+                let text = res.text().await.unwrap();
+                if text.contains("Block Page") {
+                    Err(StatusCode::FORBIDDEN)
+                } else {
+                    Ok(())
+                }
+            }
             Err(e) => Err(e.status().unwrap()),
         }
     }
@@ -45,15 +54,22 @@ impl MirrorList {
         let mut download_mirrors: Vec<Mirror> = Vec::new();
 
         let map: Value = serde_json::from_str(json).unwrap();
+
         map.as_object().unwrap().iter().for_each(|(_k, v)| {
             let search_url = v
                 .get("SearchUrl")
+                .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
+            let search_url_fiction = v
+                .get("FictionSearchUrl")
                 .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
             let host_url = v
                 .get("Host")
                 .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
             let download_url = v
                 .get("NonFictionDownloadUrl")
+                .map(|v| Url::parse(&v.as_str().unwrap().replace("{md5}", "")).unwrap());
+            let download_url_fiction = v
+                .get("FictionDownloadUrl")
                 .map(|v| Url::parse(&v.as_str().unwrap().replace("{md5}", "")).unwrap());
             let download_pattern = v
                 .get("NonFictionDownloadUrl")
@@ -69,7 +85,9 @@ impl MirrorList {
                     search_mirrors.push(Mirror {
                         host_url: host_url.unwrap(),
                         search_url,
+                        search_url_fiction,
                         download_url,
+                        download_url_fiction,
                         download_pattern,
                         sync_url,
                         cover_pattern,
@@ -78,7 +96,9 @@ impl MirrorList {
                     download_mirrors.push(Mirror {
                         host_url: host_url.unwrap(),
                         search_url,
+                        search_url_fiction,
                         download_url,
+                        download_url_fiction,
                         download_pattern,
                         sync_url,
                         cover_pattern,
@@ -86,31 +106,60 @@ impl MirrorList {
                 }
             }
         });
+
         MirrorList {
             search_mirrors,
             download_mirrors,
         }
     }
-    pub async fn get_working_mirror(
+
+    pub async fn get_working_mirrors(
         &self,
         mirror_type: MirrorType,
         client: &Client,
-    ) -> Result<Mirror, &'static str> {
+    ) -> Result<Vec<Mirror>, String> {
+        let mut working_mirrors = Vec::new();
+        let mut forbidden_mirrors = Vec::new();
+
         if let MirrorType::Search = mirror_type {
             for mirror in self.search_mirrors.iter() {
                 match mirror.check_connection(client).await {
-                    Ok(_) => return Ok(mirror.clone()),
-                    Err(_e) => continue,
+                    Ok(_) => working_mirrors.push(mirror.clone()),
+                    Err(e) => {
+                        if e == StatusCode::FORBIDDEN {
+                            forbidden_mirrors.push(mirror.clone());
+                        }
+                        continue;
+                    }
                 };
             }
         } else {
             for mirror in self.download_mirrors.iter() {
                 match mirror.check_connection(client).await {
-                    Ok(_) => return Ok(mirror.clone()),
-                    Err(_e) => continue,
+                    Ok(_) => working_mirrors.push(mirror.clone()),
+                    Err(e) => {
+                        if e == StatusCode::FORBIDDEN {
+                            forbidden_mirrors.push(mirror.clone());
+                        }
+                        continue;
+                    }
                 };
             }
         }
-        Err("Couldn't reach mirrors")
+
+        if !forbidden_mirrors.is_empty() {
+            let forbidden_urls: Vec<String> = forbidden_mirrors
+                .iter()
+                .map(|mirror| mirror.host_url.to_string())
+                .collect();
+            Err(format!(
+                "The following mirrors were blocked: {}",
+                forbidden_urls.join(", ")
+            ))
+        } else if working_mirrors.is_empty() {
+            Err("Couldn't reach mirrors".to_string())
+        } else {
+            Ok(working_mirrors)
+        }
     }
 }

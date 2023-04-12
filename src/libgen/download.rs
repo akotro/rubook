@@ -24,7 +24,6 @@ pub async fn download_book(
     mirror: &Mirror,
     book: &LibgenBook,
 ) -> Result<reqwest::Response, &'static str> {
-    println!("mirror: {:?}", mirror);
     let download_page_url_md5 =
         mirror
         .download_pattern
