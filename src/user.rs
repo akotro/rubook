@@ -34,8 +34,8 @@ impl User {
 
     pub async fn download_books(
         &mut self,
-        client: Arc<Client>,
-        mirror_handles: Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
+        client: &Arc<Client>,
+        mirror_handles: &mut Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
     ) -> Result<(), Box<dyn std::error::Error>> {
         if !self.collection.is_empty() {
             let selected_book =

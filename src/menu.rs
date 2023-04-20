@@ -25,8 +25,8 @@ pub async fn menu(user: &mut crate::user::User) -> Result<(), Box<dyn std::error
     let client = std::sync::Arc::new(client);
 
     let mirrors = crate::libgen_util::parse_mirrors();
-    let mirror_handles = std::sync::Arc::new(mirrors)
-        .spawn_get_working_mirrors_tasks(client)
+    let mut mirror_handles = std::sync::Arc::new(mirrors)
+        .spawn_get_working_mirrors_tasks(&client)
         .await;
 
     loop {
@@ -56,7 +56,7 @@ pub async fn menu(user: &mut crate::user::User) -> Result<(), Box<dyn std::error
                     }
                 }
                 MenuOption::DownloadBook => {
-                    if let Err(e) = user.download_books().await {
+                    if let Err(e) = user.download_books(&client, &mut mirror_handles).await {
                         eprintln!("Error downloading books: {}", e);
                     }
                 }

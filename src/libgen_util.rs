@@ -26,11 +26,11 @@ use crate::{
 
 pub async fn libgen_book_download(
     book: Book,
-    client: Arc<Client>,
-    mirror_handles: Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
+    client: &Arc<Client>,
+    mirror_handles: &mut Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
 ) -> Result<(), String> {
-    let search_mirrors_handle = mirror_handles[0];
-    let download_mirrors_handle = mirror_handles[1];
+    let search_mirrors_handle = mirror_handles.remove(0);
+    let download_mirrors_handle = mirror_handles.remove(0);
 
     println!("Getting working search mirrors...");
     let working_search_mirrors = match search_mirrors_handle.await.unwrap() {
