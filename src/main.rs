@@ -5,8 +5,6 @@ mod user;
 mod libgen;
 mod libgen_util;
 
-// use inquire::Text;
-
 use user::User;
 
 #[tokio::main]

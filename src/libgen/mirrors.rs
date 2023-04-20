@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use reqwest::{Client, StatusCode, Url};
 use serde_json::Value;
-use tokio::{spawn, task::JoinHandle};
+use tokio::task::JoinHandle;
 
 pub enum MirrorType {
     Search,
@@ -167,7 +167,7 @@ impl MirrorList {
 
     pub async fn spawn_get_working_mirrors_tasks(
         self: Arc<Self>,
-        client: Arc<Client>,
+        client: &Arc<Client>,
     ) -> Vec<JoinHandle<Result<Vec<Mirror>, String>>> {
         let search_mirrors_handle = tokio::spawn({
             let self_clone = Arc::clone(&self);
