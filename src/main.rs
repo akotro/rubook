@@ -1,24 +1,15 @@
 mod book_util;
-mod menu;
-mod models;
-mod user;
+mod db_util;
 mod libgen;
 mod libgen_util;
-
-use user::User;
+mod menu;
+mod models;
+mod schema;
+mod user;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // let username = Text::new("Enter your username:").prompt();
-    let username = String::from("Antonis");
-
-    let mut user = User {
-        id: 1,
-        username/* username.unwrap() */,
-        collection: vec![],
-    };
-
-    menu::menu(&mut user).await?;
-
-    Ok(())
+    let db_pool = db_util::init_connection_pool();
+    let mut connection = db_util::get_connection(&db_pool);
+    menu::main_loop(&mut connection).await
 }
