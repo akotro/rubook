@@ -1,9 +1,9 @@
+use rubook_lib::models::{Book, Response};
+
 use std::{collections::HashMap, env};
 
 use dotenvy::dotenv;
 use inquire::Text;
-
-use crate::models::{Book, Response};
 
 pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::Error>> {
     dotenv().ok();

@@ -14,15 +14,7 @@ use inquire::Select;
 use reqwest::{header::CONTENT_DISPOSITION, Client, Response};
 use tokio::task::JoinHandle;
 
-use crate::{
-    libgen::{
-        download::{download_book, download_book_fiction},
-        mirrors::{Mirror, MirrorList, MirrorType},
-        models::LibgenBook,
-        search::{search_fiction, search_non_fiction, SearchType},
-    },
-    models::Book,
-};
+use crate::{models::Book, libgen::{mirrors::{Mirror, MirrorType, MirrorList}, search::{SearchType, search_non_fiction, search_fiction}, download::{download_book, download_book_fiction}, models::LibgenBook}};
 
 pub async fn libgen_book_download(
     book: Book,

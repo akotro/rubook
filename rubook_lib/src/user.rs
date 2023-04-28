@@ -1,34 +1,20 @@
 use core::fmt;
 use std::{collections::HashMap, sync::Arc};
 
-use crate::{
-    db_util::{create_user, get_user_by_credentials, NewUser, self},
-    libgen::mirrors::Mirror,
-    libgen_util::libgen_book_download,
-    models::Book,
-};
 use diesel::{MysqlConnection, Queryable};
 use inquire::{min_length, MultiSelect, Password, PasswordDisplayMode, Select, Text};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
-#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct User {
-    pub id: i32,
-    pub username: String,
-    pub password: String,
-    pub collection: Vec<Book>,
-}
+use crate::{
+    db_util::{self, create_user, get_user_by_credentials, NewUser},
+    libgen::mirrors::Mirror,
+    libgen_util::libgen_book_download,
+    models::Book,
+};
 
-#[derive(Queryable)]
-pub struct DbUser {
-    pub id: i32,
-    pub username: String,
-    pub password: String,
-}
-
-pub fn register(conn: &mut MysqlConnection) -> User {
+pub fn register(conn: &mut MysqlConnection) -> Option<User> {
     let username = Text::new("Enter your username:")
         .prompt()
         .expect("Failed to get username");
@@ -45,19 +31,19 @@ pub fn register(conn: &mut MysqlConnection) -> User {
 
     if let Ok(db_user) = create_user(conn, &new_user) {
         println!("User created: {}", db_user.username);
-        User {
+        Some(User {
             id: db_user.id,
             username: db_user.username,
             password: db_user.password,
             collection: vec![],
-        }
+        })
     } else {
         println!("Failed to create user");
-        User::default()
+        None
     }
 }
 
-pub fn login(conn: &mut MysqlConnection) -> User {
+pub fn login(conn: &mut MysqlConnection) -> Option<User> {
     let username = Text::new("Enter your username:")
         .prompt()
         .expect("Failed to get username");
@@ -69,10 +55,10 @@ pub fn login(conn: &mut MysqlConnection) -> User {
 
     if let Ok(user) = get_user_by_credentials(conn, username.as_str(), password.as_str()) {
         println!("Welcome back, {}", user.username);
-        user
+        Some(user)
     } else {
         println!("Failed to login");
-        User::default()
+        None
     }
 }
 
@@ -114,6 +100,14 @@ impl User {
     }
 }
 
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct User {
+    pub id: i32,
+    pub username: String,
+    pub password: String,
+    pub collection: Vec<Book>,
+}
+
 impl fmt::Display for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         if !self.collection.is_empty() {
@@ -124,4 +118,11 @@ impl fmt::Display for User {
             write!(f, "No books in your collection yet")
         }
     }
+}
+
+#[derive(Queryable)]
+pub struct DbUser {
+    pub id: i32,
+    pub username: String,
+    pub password: String,
 }

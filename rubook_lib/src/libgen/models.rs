@@ -18,6 +18,7 @@ pub struct LibgenBook {
 }
 
 impl LibgenBook {
+    #![allow(dead_code)]
     fn print_libgen_book_info(&self) -> Result<(), &'static str> {
         println!("ID: {}", self.id);
         println!("Title: {}", self.title);

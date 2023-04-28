@@ -1,6 +1,5 @@
 use diesel::MysqlConnection;
-
-use crate::user::{login, register, User};
+use rubook_lib::{user::{login, register, User}, libgen_util::parse_mirrors};
 
 #[derive(Debug)]
 pub enum LoginMenuOption {
@@ -38,6 +37,20 @@ impl std::fmt::Display for MainMenuOption {
     }
 }
 
+fn confirm_retry() -> bool {
+    let retry = inquire::Confirm::new("Try again?")
+        .with_default(false)
+        .prompt();
+    match retry {
+        Ok(true) => true,
+        Ok(false) => false,
+        Err(_) => {
+            println!("Error, try again later");
+            false
+        }
+    }
+}
+
 fn confirm_exit() -> bool {
     let really_exit = inquire::Confirm::new("Do you really want to exit?")
         .with_default(false)
@@ -54,9 +67,7 @@ fn confirm_exit() -> bool {
 
 pub async fn main_loop(connection: &mut MysqlConnection) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let mut user = login_menu(connection);
-
-        if user != User::default() {
+        if let Some(mut user) = login_menu(connection) {
             main_menu(connection, &mut user).await?;
             break;
         }
@@ -70,7 +81,7 @@ pub async fn main_loop(connection: &mut MysqlConnection) -> Result<(), Box<dyn s
     Ok(())
 }
 
-pub fn login_menu(conn: &mut MysqlConnection) -> User {
+pub fn login_menu(conn: &mut MysqlConnection) -> Option<User> {
     loop {
         let options = vec![
             LoginMenuOption::Login,
@@ -79,18 +90,33 @@ pub fn login_menu(conn: &mut MysqlConnection) -> User {
         ];
         let selection = inquire::Select::new("Select an option:", options).prompt();
 
-        return match selection {
+        match selection {
             Ok(selection) => match selection {
-                LoginMenuOption::Exit => break User::default(),
-                LoginMenuOption::Login => login(conn),
-                LoginMenuOption::Register => register(conn),
+                LoginMenuOption::Exit => break None,
+                LoginMenuOption::Login => {
+                    if let Some(user) = login(conn) {
+                        break Some(user);
+                    } else if !confirm_retry() {
+                        break None;
+                    }
+                }
+                LoginMenuOption::Register => {
+                    if let Some(user) = register(conn) {
+                        break Some(user);
+                    } else if !confirm_retry() {
+                        break None;
+                    }
+                }
             },
-            Err(_) => break User::default(),
+            Err(_) => break None,
         };
     }
 }
 
-pub async fn main_menu(conn: &mut MysqlConnection, user: &mut User) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn main_menu(
+    conn: &mut MysqlConnection,
+    user: &mut User,
+) -> Result<(), Box<dyn std::error::Error>> {
     let client = reqwest::Client::builder()
         .danger_accept_invalid_certs(true)
         .build()
@@ -98,7 +124,7 @@ pub async fn main_menu(conn: &mut MysqlConnection, user: &mut User) -> Result<()
     let client = std::sync::Arc::new(client);
 
     loop {
-        let mirrors = crate::libgen_util::parse_mirrors();
+        let mirrors = parse_mirrors();
         let mut mirror_handles = std::sync::Arc::new(mirrors)
             .spawn_get_working_mirrors_tasks(&client)
             .await;

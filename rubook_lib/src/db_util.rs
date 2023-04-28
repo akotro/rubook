@@ -1,8 +1,11 @@
+#![allow(dead_code)]
+
 use diesel::{prelude::*, r2d2::ConnectionManager};
+use diesel_migrations::MigrationHarness;
+use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use r2d2::Pool;
 use std::env;
 
-// use diesel::{Connection, MysqlConnection, QueryDsl};
 use dotenvy::dotenv;
 
 use crate::{
@@ -13,28 +16,31 @@ use crate::{
 
 // NOTE:(akotro) Database
 
+const LOCAL_DB: &str = "DATABASE_URL";
+const SANDBOX_DB: &str = "DATABASE_URL_SANDBOX";
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+
 pub type MySqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
-pub fn init_connection_pool() -> MySqlPool {
+pub fn init_database() -> MySqlPool {
     dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = env::var(SANDBOX_DB).expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<MysqlConnection>::new(database_url);
-    Pool::builder()
+    let pool = Pool::builder()
         .build(manager)
-        .expect("Failed to create MysqlConnection pool")
+        .expect("Failed to create MysqlConnection pool");
+
+    let mut conn = get_connection(&pool);
+    conn.run_pending_migrations(MIGRATIONS)
+        .expect("Failed to run pending migrations");
+
+    pool
 }
 
 pub fn get_connection(
     pool: &MySqlPool,
 ) -> r2d2::PooledConnection<ConnectionManager<MysqlConnection>> {
     pool.get().expect("Failed to get MysqlConnection from pool")
-}
-
-pub fn establish_connection() -> MysqlConnection {
-    dotenv().ok();
-    let database_url = env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-    MysqlConnection::establish(&database_url)
-        .unwrap_or_else(|_| panic!("Error connecting to {}", database_url))
 }
 
 // NOTE:(akotro) Users
@@ -46,11 +52,9 @@ pub struct NewUser<'a> {
     pub password: &'a str,
 }
 
-pub fn get_users() {
-    let connection = &mut establish_connection();
-
+pub fn get_users(conn: &mut MysqlConnection) {
     let results = users::table
-        .load::<DbUser>(connection)
+        .load::<DbUser>(conn)
         .expect("Error loading users");
 
     for user in results {
@@ -150,6 +154,12 @@ pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: i32) -> Que
 
         create_volume_info(transaction_context, &book.id, &book.volume_info)?;
         create_access_info(transaction_context, &book.id, &book.access_info)?;
+        let empty_vec: Vec<String> = Vec::new();
+        create_authors(
+            transaction_context,
+            &book.id,
+            &book.volume_info.authors.as_ref().unwrap_or(&empty_vec),
+        )?;
 
         Ok(rows_inserted)
     })?;
@@ -370,4 +380,49 @@ pub fn update_access_info(
 
 pub fn delete_access_info(conn: &mut MysqlConnection, book_id: &str) -> QueryResult<usize> {
     diesel::delete(access_infos::table.filter(access_infos::book_id.eq(book_id))).execute(conn)
+}
+
+// NOTE:(akotro) Authors
+
+#[derive(AsChangeset, Insertable)]
+#[diesel(table_name = authors)]
+struct NewAuthor<'a> {
+    book_id: &'a str,
+    name: &'a str,
+}
+
+pub fn create_authors(
+    conn: &mut MysqlConnection,
+    book_id: &str,
+    authors: &Vec<String>,
+) -> QueryResult<usize> {
+    let new_authors: Vec<NewAuthor> = authors
+        .iter()
+        .map(|name| NewAuthor { book_id, name })
+        .collect();
+
+    diesel::insert_into(authors::table)
+        .values(&new_authors)
+        .execute(conn)
+}
+
+fn get_authors(conn: &mut MysqlConnection, book: &Book) -> QueryResult<Vec<DbAuthor>> {
+    authors::table
+        .filter(authors::book_id.eq(&book.id))
+        .load::<DbAuthor>(conn)
+}
+
+fn update_author(
+    conn: &mut MysqlConnection,
+    id: i32,
+    book_id: &str,
+    name: &str,
+) -> QueryResult<usize> {
+    diesel::update(authors::table.find(id))
+        .set((authors::book_id.eq(book_id), authors::name.eq(name)))
+        .execute(conn)
+}
+
+fn delete_authors(conn: &mut MysqlConnection, book: &Book) -> QueryResult<usize> {
+    diesel::delete(authors::table.filter(authors::book_id.eq(&book.id))).execute(conn)
 }
