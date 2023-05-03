@@ -1,4 +1,6 @@
-use diesel::MysqlConnection;
+use std::sync::Arc;
+
+use reqwest::Client;
 use rubook_lib::{user::{login, register, User}, libgen_util::parse_mirrors};
 
 #[derive(Debug)]
@@ -22,6 +24,7 @@ impl std::fmt::Display for LoginMenuOption {
 pub enum MainMenuOption {
     SearchForBook,
     ViewCollection,
+    DeleteBooks,
     DownloadBook,
     Exit,
 }
@@ -31,6 +34,7 @@ impl std::fmt::Display for MainMenuOption {
         match self {
             MainMenuOption::SearchForBook => write!(f, "Search for a book"),
             MainMenuOption::ViewCollection => write!(f, "View your collection"),
+            MainMenuOption::DeleteBooks => write!(f, "Delete books from your collection"),
             MainMenuOption::DownloadBook => write!(f, "Download a book from your collection"),
             MainMenuOption::Exit => write!(f, "Exit"),
         }
@@ -65,10 +69,10 @@ fn confirm_exit() -> bool {
     }
 }
 
-pub async fn main_loop(connection: &mut MysqlConnection) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn main_loop(client: Arc<Client>) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        if let Some(mut user) = login_menu(connection) {
-            main_menu(connection, &mut user).await?;
+        if let Some(mut user) = login_menu(&client).await {
+            main_menu(client, &mut user).await?;
             break;
         }
 
@@ -81,7 +85,7 @@ pub async fn main_loop(connection: &mut MysqlConnection) -> Result<(), Box<dyn s
     Ok(())
 }
 
-pub fn login_menu(conn: &mut MysqlConnection) -> Option<User> {
+pub async fn login_menu(client: &Arc<Client>) -> Option<User> {
     loop {
         let options = vec![
             LoginMenuOption::Login,
@@ -94,14 +98,14 @@ pub fn login_menu(conn: &mut MysqlConnection) -> Option<User> {
             Ok(selection) => match selection {
                 LoginMenuOption::Exit => break None,
                 LoginMenuOption::Login => {
-                    if let Some(user) = login(conn) {
+                    if let Some(user) = login(client).await {
                         break Some(user);
                     } else if !confirm_retry() {
                         break None;
                     }
                 }
                 LoginMenuOption::Register => {
-                    if let Some(user) = register(conn) {
+                    if let Some(user) = register(client).await {
                         break Some(user);
                     } else if !confirm_retry() {
                         break None;
@@ -114,15 +118,9 @@ pub fn login_menu(conn: &mut MysqlConnection) -> Option<User> {
 }
 
 pub async fn main_menu(
-    conn: &mut MysqlConnection,
+    client: Arc<Client>,
     user: &mut User,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let client = reqwest::Client::builder()
-        .danger_accept_invalid_certs(true)
-        .build()
-        .expect("Could not build reqwest client");
-    let client = std::sync::Arc::new(client);
-
     loop {
         let mirrors = parse_mirrors();
         let mut mirror_handles = std::sync::Arc::new(mirrors)
@@ -133,6 +131,7 @@ pub async fn main_menu(
             MainMenuOption::SearchForBook,
             MainMenuOption::ViewCollection,
             MainMenuOption::DownloadBook,
+            MainMenuOption::DeleteBooks,
             MainMenuOption::Exit,
         ];
         let selection = inquire::Select::new(
@@ -152,11 +151,16 @@ pub async fn main_menu(
                 MainMenuOption::ViewCollection => println!("{}", user),
                 MainMenuOption::SearchForBook => {
                     if let Ok(books) = crate::book_util::book_search().await {
-                        if let Err(e) = user.add_books(conn, books) {
+                        if let Err(e) = user.add_books(&client, books).await {
                             eprintln!("Error adding books: {}", e);
                         }
                     } else {
                         eprintln!("Error searching for books");
+                    }
+                }
+                MainMenuOption::DeleteBooks => {
+                    if let Err(e) = user.delete_books(&client).await {
+                        eprintln!("Error deleting books: {}", e);
                     }
                 }
                 MainMenuOption::DownloadBook => {

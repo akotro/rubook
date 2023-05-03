@@ -17,7 +17,7 @@ impl fmt::Display for Book {
     }
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbBook {
     pub id: String,
     pub user_id: i32,
@@ -48,7 +48,7 @@ impl fmt::Display for VolumeInfo {
     }
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbVolumeInfo {
     pub book_id: String,
     pub title: Option<String>,
@@ -58,7 +58,7 @@ pub struct DbVolumeInfo {
     pub description: Option<String>,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbAuthor {
     pub id: i32,
     pub book_id: String,
@@ -73,7 +73,7 @@ pub struct IndustryIdentifier {
     pub identifier: String,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbIndustryIdentifier {
     pub id: i32,
     pub book_id: String,
@@ -104,7 +104,7 @@ pub struct BookFormat {
     pub is_available: bool,
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbAccessInfo {
     pub book_id: String,
     pub epub_is_available: bool,

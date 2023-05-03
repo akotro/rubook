@@ -31,7 +31,6 @@ pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::
                     if let Some(error) = response.error {
                         println!("Serialization error from google api: {}", error.message);
                     } else if let Some(items) = response.items {
-                        println!("SHADOW WIZARD MONEY GANG");
                         for book in items {
                             books.insert(book.id.clone(), book.clone());
                         }

@@ -1,104 +1,16 @@
 use core::fmt;
 use std::{collections::HashMap, sync::Arc};
 
-use diesel::{MysqlConnection, Queryable};
+use diesel::{AsChangeset, Insertable, Queryable};
 use inquire::{min_length, MultiSelect, Password, PasswordDisplayMode, Select, Text};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use tokio::task::JoinHandle;
 
 use crate::{
-    db_util::{self, create_user, get_user_by_credentials, NewUser},
-    libgen::mirrors::Mirror,
-    libgen_util::libgen_book_download,
-    models::Book,
+    backend_util, libgen::mirrors::Mirror, libgen_util::libgen_book_download, models::Book,
+    schema::users,
 };
-
-pub fn register(conn: &mut MysqlConnection) -> Option<User> {
-    let username = Text::new("Enter your username:")
-        .prompt()
-        .expect("Failed to get username");
-    let password = Password::new("Enter your password: ")
-        .with_display_mode(PasswordDisplayMode::Masked)
-        .with_validator(min_length!(8))
-        .prompt()
-        .expect("Failed to get password");
-
-    let new_user = NewUser {
-        username: username.as_str(),
-        password: password.as_str(),
-    };
-
-    if let Ok(db_user) = create_user(conn, &new_user) {
-        println!("User created: {}", db_user.username);
-        Some(User {
-            id: db_user.id,
-            username: db_user.username,
-            password: db_user.password,
-            collection: vec![],
-        })
-    } else {
-        println!("Failed to create user");
-        None
-    }
-}
-
-pub fn login(conn: &mut MysqlConnection) -> Option<User> {
-    let username = Text::new("Enter your username:")
-        .prompt()
-        .expect("Failed to get username");
-    let password = Password::new("Enter your password: ")
-        .with_display_mode(PasswordDisplayMode::Masked)
-        .without_confirmation()
-        .prompt()
-        .expect("Failed to get password");
-
-    if let Ok(user) = get_user_by_credentials(conn, username.as_str(), password.as_str()) {
-        println!("Welcome back, {}", user.username);
-        Some(user)
-    } else {
-        println!("Failed to login");
-        None
-    }
-}
-
-impl User {
-    pub fn add_books(
-        &mut self,
-        conn: &mut MysqlConnection,
-        books: HashMap<String, Book>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        let select_items = books.values().map(|book| book).collect::<Vec<_>>();
-        let selected_books =
-            MultiSelect::new("Select books to add to your collection:", select_items).prompt()?;
-        for book in selected_books {
-            if let Some(book) = books.get(&book.id) {
-                // println!("You selected: {}: {}", &book.id, book.volume_info);
-                self.collection.push(book.clone());
-                db_util::create_book(conn, &book, self.id)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn download_books(
-        &mut self,
-        client: &Arc<Client>,
-        mirror_handles: &mut Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        if !self.collection.is_empty() {
-            let selected_book =
-                Select::new("Select books to download:", self.collection.clone()).prompt()?;
-
-            libgen_book_download(selected_book, client, mirror_handles).await?;
-        } else {
-            println!("No books in your collection to download");
-        }
-
-        Ok(())
-    }
-}
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
@@ -120,9 +32,122 @@ impl fmt::Display for User {
     }
 }
 
-#[derive(Queryable)]
+#[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbUser {
     pub id: i32,
     pub username: String,
     pub password: String,
+}
+
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
+#[diesel(table_name = users)]
+pub struct NewUser {
+    pub username: String,
+    pub password: String,
+}
+
+pub async fn register(client: &Arc<Client>) -> Option<User> {
+    let username = Text::new("Enter your username:")
+        .prompt()
+        .expect("Failed to get username");
+    let password = Password::new("Enter your password: ")
+        .with_display_mode(PasswordDisplayMode::Masked)
+        .with_validator(min_length!(8))
+        .prompt()
+        .expect("Failed to get password");
+
+    let new_user = NewUser { username, password };
+
+    if let Ok(db_user) = backend_util::register_user(client, &new_user).await {
+        println!("User created: {}", db_user.username);
+        Some(User {
+            id: db_user.id,
+            username: db_user.username,
+            password: db_user.password,
+            collection: vec![],
+        })
+    } else {
+        println!("Failed to create user");
+        None
+    }
+}
+
+pub async fn login(client: &Arc<Client>) -> Option<User> {
+    let username = Text::new("Enter your username:")
+        .prompt()
+        .expect("Failed to get username");
+    let password = Password::new("Enter your password: ")
+        .with_display_mode(PasswordDisplayMode::Masked)
+        .without_confirmation()
+        .prompt()
+        .expect("Failed to get password");
+
+    if let Ok(user) = backend_util::login_user(client, username, password).await {
+        println!("Welcome back, {}", user.username);
+        Some(user)
+    } else {
+        println!("Failed to login");
+        None
+    }
+}
+
+impl User {
+    pub async fn add_books(
+        &mut self,
+        client: &Arc<Client>,
+        books: HashMap<String, Book>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        let select_items = books.values().map(|book| book).collect::<Vec<_>>();
+        let selected_books =
+            MultiSelect::new("Select books to add to your collection:", select_items).prompt()?;
+        for book in selected_books {
+            if let Some(book) = books.get(&book.id) {
+                // println!("You selected: {}: {}", &book.id, book.volume_info);
+                self.collection.push(book.clone());
+                backend_util::create_book(client, &book, self.id).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub async fn delete_books(
+        &mut self,
+        client: &Arc<Client>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.collection.is_empty() {
+            let books_to_delete = MultiSelect::new(
+                "Select books to delete from your collection:",
+                self.collection.clone(),
+            )
+            .prompt()?;
+
+            self.collection
+                .retain(|book| !books_to_delete.contains(book));
+            for book in books_to_delete {
+                backend_util::delete_book(client, book.id).await?;
+            }
+        } else {
+            println!("No books in your collection to download");
+        }
+
+        Ok(())
+    }
+
+    pub async fn download_books(
+        &mut self,
+        client: &Arc<Client>,
+        mirror_handles: &mut Vec<JoinHandle<Result<Vec<Mirror>, String>>>,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        if !self.collection.is_empty() {
+            let selected_book =
+                Select::new("Select books to download:", self.collection.clone()).prompt()?;
+
+            libgen_book_download(selected_book, client, mirror_handles).await?;
+        } else {
+            println!("No books in your collection to download");
+        }
+
+        Ok(())
+    }
 }

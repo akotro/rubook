@@ -4,15 +4,16 @@ use diesel::{prelude::*, r2d2::ConnectionManager};
 use diesel_migrations::MigrationHarness;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use r2d2::Pool;
+use rubook_lib::models::{
+    AccessInfo, Book, BookFormat, DbAccessInfo, DbAuthor, DbBook, DbIndustryIdentifier,
+    DbVolumeInfo, IndustryIdentifier, VolumeInfo,
+};
+use rubook_lib::schema::{access_infos, authors, books, industry_identifiers, users, volume_infos};
+use rubook_lib::user::{DbUser, NewUser, User};
+use serde::{Deserialize, Serialize};
 use std::env;
 
 use dotenvy::dotenv;
-
-use crate::{
-    models::*,
-    schema::*,
-    user::{DbUser, User},
-};
 
 // NOTE:(akotro) Database
 
@@ -24,7 +25,7 @@ pub type MySqlPool = Pool<ConnectionManager<MysqlConnection>>;
 
 pub fn init_database() -> MySqlPool {
     dotenv().ok();
-    let database_url = env::var(SANDBOX_DB).expect("DATABASE_URL must be set");
+    let database_url = env::var(LOCAL_DB).expect("DATABASE_URL must be set");
     let manager = ConnectionManager::<MysqlConnection>::new(database_url);
     let pool = Pool::builder()
         .build(manager)
@@ -45,21 +46,8 @@ pub fn get_connection(
 
 // NOTE:(akotro) Users
 
-#[derive(AsChangeset, Insertable)]
-#[diesel(table_name = users)]
-pub struct NewUser<'a> {
-    pub username: &'a str,
-    pub password: &'a str,
-}
-
-pub fn get_users(conn: &mut MysqlConnection) {
-    let results = users::table
-        .load::<DbUser>(conn)
-        .expect("Error loading users");
-
-    for user in results {
-        println!("{}: {}", user.id, user.username);
-    }
+pub fn get_users(conn: &mut MysqlConnection) -> QueryResult<Vec<DbUser>> {
+    users::table.load::<DbUser>(conn)
 }
 
 pub fn create_user(conn: &mut MysqlConnection, new_user: &NewUser) -> QueryResult<DbUser> {
@@ -119,8 +107,8 @@ pub fn get_user_by_credentials(
 
 pub fn update_user(conn: &mut MysqlConnection, user_id: i32, user: &User) -> QueryResult<usize> {
     let updated_user = NewUser {
-        username: &user.username,
-        password: &user.password,
+        username: user.username.clone(),
+        password: user.password.clone(),
     };
 
     diesel::update(users::table.find(user_id))
@@ -134,16 +122,16 @@ pub fn delete_user(conn: &mut MysqlConnection, user_id: i32) -> QueryResult<usiz
 
 // NOTE:(akotro) Books
 
-#[derive(AsChangeset, Insertable)]
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = books)]
-pub struct NewBook<'a> {
-    pub id: &'a str,
+pub struct NewBook {
+    pub id: String,
     pub user_id: i32,
 }
 
 pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: i32) -> QueryResult<usize> {
     let new_book = NewBook {
-        id: &book.id,
+        id: book.id.clone(),
         user_id,
     };
 
@@ -167,7 +155,7 @@ pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: i32) -> Que
     Ok(rows_inserted)
 }
 
-fn get_books_by_user_id(conn: &mut MysqlConnection, db_user_id: i32) -> QueryResult<Vec<Book>> {
+pub fn get_books_by_user_id(conn: &mut MysqlConnection, db_user_id: i32) -> QueryResult<Vec<Book>> {
     let db_books = books::table
         .filter(books::user_id.eq(db_user_id))
         .load::<DbBook>(conn)?;
@@ -208,7 +196,7 @@ pub fn update_book(
     user_id: i32,
 ) -> QueryResult<usize> {
     let updated_book = NewBook {
-        id: &book.id,
+        id: book.id.clone(),
         user_id,
     };
 
@@ -222,9 +210,8 @@ pub fn delete_book(conn: &mut MysqlConnection, book_id: &str) -> QueryResult<usi
 }
 
 // NOTE:(akotro) Book Volume Infos
-// TODO:(akotro) Handle authors
 
-#[derive(AsChangeset, Insertable)]
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = volume_infos)]
 struct NewVolumeInfo<'a> {
     book_id: &'a str,
@@ -320,7 +307,7 @@ pub fn delete_volume_info(conn: &mut MysqlConnection, book_id: &str) -> QueryRes
 
 // NOTE:(akotro) Book Access Infos
 
-#[derive(AsChangeset, Insertable)]
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = access_infos)]
 struct NewAccessInfo<'a> {
     book_id: &'a str,
@@ -384,7 +371,7 @@ pub fn delete_access_info(conn: &mut MysqlConnection, book_id: &str) -> QueryRes
 
 // NOTE:(akotro) Authors
 
-#[derive(AsChangeset, Insertable)]
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = authors)]
 struct NewAuthor<'a> {
     book_id: &'a str,
