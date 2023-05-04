@@ -15,6 +15,7 @@ use crate::{
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
     pub id: i32,
+    pub token: String,
     pub username: String,
     pub password: String,
     pub collection: Vec<Book>,
@@ -46,6 +47,12 @@ pub struct NewUser {
     pub password: String,
 }
 
+#[derive(Serialize, Deserialize)]
+pub struct UserClaims {
+    pub sub: String,
+    pub exp: usize,
+}
+
 pub async fn register(client: &Arc<Client>) -> Option<User> {
     let username = Text::new("Enter your username:")
         .prompt()
@@ -62,6 +69,7 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
         println!("User created: {}", db_user.username);
         Some(User {
             id: db_user.id,
+            token: String::new(),
             username: db_user.username,
             password: db_user.password,
             collection: vec![],
@@ -104,7 +112,7 @@ impl User {
             if let Some(book) = books.get(&book.id) {
                 // println!("You selected: {}: {}", &book.id, book.volume_info);
                 self.collection.push(book.clone());
-                backend_util::create_book(client, &book, self.id).await?;
+                backend_util::create_book(client, self.token.as_str(), &book, self.id).await?;
             }
         }
 
@@ -125,7 +133,7 @@ impl User {
             self.collection
                 .retain(|book| !books_to_delete.contains(book));
             for book in books_to_delete {
-                backend_util::delete_book(client, book.id).await?;
+                backend_util::delete_book(client, self.token.as_str(), self.id, book.id).await?;
             }
         } else {
             println!("No books in your collection to download");

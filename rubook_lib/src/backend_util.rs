@@ -7,7 +7,7 @@ use serde_json::json;
 
 use crate::{
     models::Book,
-    user::{DbUser, NewUser, User},
+    user::{NewUser, User},
 };
 
 lazy_static! {
@@ -20,15 +20,15 @@ lazy_static! {
 pub async fn register_user(
     client: &Arc<Client>,
     new_user: &NewUser,
-) -> Result<DbUser, Box<dyn std::error::Error>> {
+) -> Result<User, Box<dyn std::error::Error>> {
     let response = client
-        .post(format!("{}/users", *BACKEND_URL))
+        .post(format!("{}/auth/register", *BACKEND_URL))
         .json(&new_user)
         .send()
         .await?;
     let response_body = response.text().await?;
-    let db_user = serde_json::from_str(&response_body)?;
-    Ok(db_user)
+    let user = serde_json::from_str(&response_body)?;
+    Ok(user)
 }
 
 pub async fn login_user(
@@ -43,7 +43,7 @@ pub async fn login_user(
         }
     );
     let response = client
-        .post(format!("{}/users/login", *BACKEND_URL))
+        .post(format!("{}/auth/login", *BACKEND_URL))
         .json(&credentials_json)
         .send()
         .await?;
@@ -54,11 +54,13 @@ pub async fn login_user(
 
 pub async fn create_book(
     client: &Arc<Client>,
+    token: &str,
     book: &Book,
     user_id: i32,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
         .post(format!("{}/users/{}/books", *BACKEND_URL, user_id))
+        .bearer_auth(token)
         .json(&book)
         .send()
         .await?;
@@ -69,10 +71,13 @@ pub async fn create_book(
 
 pub async fn delete_book(
     client: &Arc<Client>,
+    token: &str,
+    user_id: i32,
     book_id: String,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
-        .delete(format!("{}/books/{}", *BACKEND_URL, book_id))
+        .delete(format!("{}/users/{}/books/{}", *BACKEND_URL, user_id, book_id))
+        .bearer_auth(token)
         .send()
         .await?;
     let response_body = response.text().await?;

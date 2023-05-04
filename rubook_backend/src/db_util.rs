@@ -79,6 +79,7 @@ pub fn get_user_by_id(conn: &mut MysqlConnection, user_id: i32) -> QueryResult<U
 
     Ok(User {
         id: db_user.id,
+        token: String::new(),
         username: db_user.username,
         password: db_user.password,
         collection,
@@ -99,6 +100,7 @@ pub fn get_user_by_credentials(
 
     Ok(User {
         id: db_user.id,
+        token: String::new(),
         username: db_user.username,
         password: db_user.password,
         collection,
@@ -205,8 +207,13 @@ pub fn update_book(
         .execute(conn)
 }
 
-pub fn delete_book(conn: &mut MysqlConnection, book_id: &str) -> QueryResult<usize> {
-    diesel::delete(books::table.find(book_id)).execute(conn)
+pub fn delete_book(conn: &mut MysqlConnection, user_id: i32, book_id: &str) -> QueryResult<usize> {
+    diesel::delete(
+        books::table
+            .filter(books::user_id.eq(user_id))
+            .find(book_id),
+    )
+    .execute(conn)
 }
 
 // NOTE:(akotro) Book Volume Infos
