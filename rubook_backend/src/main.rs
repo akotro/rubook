@@ -14,16 +14,16 @@ use auth::validate_token;
 use dotenvy::dotenv;
 use env_logger::Env;
 use rubook_lib::{
-    models::Book,
+    models::{ApiResponse, Book},
     user::{NewUser, User},
 };
+use uuid::Uuid;
 
 use crate::{
     auth::generate_token,
     db_util::{
         create_book, create_user, delete_book, delete_user, get_book_by_id, get_books_by_user_id,
-        get_connection, get_user_by_credentials, get_user_by_id, get_users, update_book,
-        update_user, MySqlPool,
+        get_connection, get_user_by_credentials, get_user_by_id, get_users, update_user, MySqlPool,
     },
 };
 
@@ -33,8 +33,10 @@ const JWT_SECRET: &str = "JWT_SECRET";
 async fn register_user_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    new_user: web::Json<NewUser>,
+    mut new_user: web::Json<NewUser>,
 ) -> HttpResponse {
+    new_user.0.id = Uuid::new_v4().to_string();
+    println!("id: {}", new_user.0.id);
     let username = new_user.0.username.clone();
 
     let result = web::block(move || {
@@ -47,17 +49,20 @@ async fn register_user_route(
         Ok(users_result) => match users_result {
             Ok(db_user) => {
                 let token = generate_token(&req, username);
-                HttpResponse::Created().json(User {
+                HttpResponse::Created().json(ApiResponse::success(User {
                     id: db_user.id,
                     username: db_user.username,
                     password: db_user.password,
                     token: token.clone(),
                     collection: Vec::new(),
-                })
+                }))
             }
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -80,11 +85,14 @@ async fn login_user_route(
             Ok(mut user) => {
                 let token = generate_token(&req, username);
                 user.token = token;
-                HttpResponse::Found().json(user)
+                HttpResponse::Found().json(ApiResponse::success(user))
             }
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -101,10 +109,13 @@ async fn get_users_route(pool: web::Data<MySqlPool>, req: HttpRequest) -> HttpRe
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(users) => HttpResponse::Ok().json(users),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(users) => HttpResponse::Ok().json(ApiResponse::success(users)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -112,7 +123,7 @@ async fn get_users_route(pool: web::Data<MySqlPool>, req: HttpRequest) -> HttpRe
 async fn get_user_by_id_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    id: web::Path<i32>,
+    id: web::Path<String>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
         return err;
@@ -120,15 +131,18 @@ async fn get_user_by_id_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        get_user_by_id(&mut conn, *id)
+        get_user_by_id(&mut conn, &id)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(user) => HttpResponse::Found().json(user),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(user) => HttpResponse::Found().json(ApiResponse::success(user)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -136,7 +150,7 @@ async fn get_user_by_id_route(
 async fn update_user_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    id: web::Path<i32>,
+    id: web::Path<String>,
     user: web::Json<User>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
@@ -145,15 +159,18 @@ async fn update_user_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        update_user(&mut conn, *id, &user.0)
+        update_user(&mut conn, &id, &user.0)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(rows) => HttpResponse::Ok().json(rows),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(rows) => HttpResponse::Ok().json(ApiResponse::success(rows)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -161,7 +178,7 @@ async fn update_user_route(
 async fn delete_user_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    id: web::Path<i32>,
+    id: web::Path<String>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
         return err;
@@ -169,15 +186,18 @@ async fn delete_user_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        delete_user(&mut conn, *id)
+        delete_user(&mut conn, &id)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(rows) => HttpResponse::Ok().json(rows),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(rows) => HttpResponse::Ok().json(ApiResponse::success(rows)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -185,7 +205,7 @@ async fn delete_user_route(
 async fn create_book_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    user_id: web::Path<i32>,
+    user_id: web::Path<String>,
     book: web::Json<Book>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
@@ -194,15 +214,18 @@ async fn create_book_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        create_book(&mut conn, &book.0, *user_id)
+        create_book(&mut conn, &book.0, &user_id)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(rows) => HttpResponse::Ok().json(rows),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(rows) => HttpResponse::Ok().json(ApiResponse::success(rows)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -210,7 +233,7 @@ async fn create_book_route(
 async fn get_books_by_user_id_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    user_id: web::Path<i32>,
+    user_id: web::Path<String>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
         return err;
@@ -218,15 +241,18 @@ async fn get_books_by_user_id_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        get_books_by_user_id(&mut conn, *user_id)
+        get_books_by_user_id(&mut conn, &user_id)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(books) => HttpResponse::Ok().json(books),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(books) => HttpResponse::Ok().json(ApiResponse::success(books)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
@@ -247,44 +273,47 @@ async fn get_book_by_id_route(
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(book) => HttpResponse::Ok().json(book),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(book) => HttpResponse::Ok().json(ApiResponse::success(book)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 
-#[put("/users/{user_id}/books/{book_id}")]
-async fn update_book_route(
-    pool: web::Data<MySqlPool>,
-    req: HttpRequest,
-    user_id: web::Path<i32>,
-    book_id: web::Path<String>,
-    book: web::Json<Book>,
-) -> HttpResponse {
-    if let Err(err) = validate_token(&req) {
-        return err;
-    }
+// #[put("/users/{user_id}/books/{book_id}")]
+// async fn update_book_route(
+//     pool: web::Data<MySqlPool>,
+//     req: HttpRequest,
+//     user_id: web::Path<i32>,
+//     book_id: web::Path<String>,
+//     book: web::Json<Book>,
+// ) -> HttpResponse {
+//     if let Err(err) = validate_token(&req) {
+//         return err;
+//     }
 
-    let result = web::block(move || {
-        let mut conn = get_connection(&pool);
-        update_book(&mut conn, &book_id, &book.0, *user_id)
-    })
-    .await;
-    match result {
-        Ok(users_result) => match users_result {
-            Ok(rows) => HttpResponse::Ok().json(rows),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
-        },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
-    }
-}
+//     let result = web::block(move || {
+//         let mut conn = get_connection(&pool);
+//         update_book(&mut conn, &book_id, &book.0, *user_id)
+//     })
+//     .await;
+//     match result {
+//         Ok(users_result) => match users_result {
+//             Ok(rows) => HttpResponse::Ok().json(rows),
+//             Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+//         },
+//         Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+//     }
+// }
 
 #[delete("/users/{user_id}/books/{book_id}")]
 async fn delete_book_route(
     pool: web::Data<MySqlPool>,
     req: HttpRequest,
-    params: web::Path<(i32, String)>,
+    params: web::Path<(String, String)>,
 ) -> HttpResponse {
     if let Err(err) = validate_token(&req) {
         return err;
@@ -294,15 +323,18 @@ async fn delete_book_route(
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        delete_book(&mut conn, user_id, &book_id)
+        delete_book(&mut conn, &user_id, &book_id)
     })
     .await;
     match result {
         Ok(users_result) => match users_result {
-            Ok(rows) => HttpResponse::Ok().json(rows),
-            Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+            Ok(rows) => HttpResponse::Ok().json(ApiResponse::success(rows)),
+            Err(error) => HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string())),
         },
-        Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
+        Err(error) => {
+            HttpResponse::InternalServerError().json(ApiResponse::<()>::error(error.to_string()))
+        }
     }
 }
 

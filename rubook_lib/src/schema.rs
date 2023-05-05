@@ -19,7 +19,6 @@ diesel::table! {
 diesel::table! {
     books (id) {
         id -> Varchar,
-        user_id -> Integer,
     }
 }
 
@@ -33,8 +32,16 @@ diesel::table! {
 }
 
 diesel::table! {
-    users (id) {
+    user_books (id) {
         id -> Integer,
+        user_id -> Char,
+        book_id -> Varchar,
+    }
+}
+
+diesel::table! {
+    users (id) {
+        id -> Char,
         username -> Text,
         password -> Text,
     }
@@ -53,8 +60,9 @@ diesel::table! {
 
 diesel::joinable!(access_infos -> books (book_id));
 diesel::joinable!(authors -> books (book_id));
-diesel::joinable!(books -> users (user_id));
 diesel::joinable!(industry_identifiers -> books (book_id));
+diesel::joinable!(user_books -> books (book_id));
+diesel::joinable!(user_books -> users (user_id));
 diesel::joinable!(volume_infos -> books (book_id));
 
 diesel::allow_tables_to_appear_in_same_query!(
@@ -62,6 +70,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     authors,
     books,
     industry_identifiers,
+    user_books,
     users,
     volume_infos,
 );

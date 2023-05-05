@@ -14,7 +14,7 @@ use crate::{
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct User {
-    pub id: i32,
+    pub id: String,
     pub token: String,
     pub username: String,
     pub password: String,
@@ -35,7 +35,7 @@ impl fmt::Display for User {
 
 #[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbUser {
-    pub id: i32,
+    pub id: String,
     pub username: String,
     pub password: String,
 }
@@ -43,6 +43,7 @@ pub struct DbUser {
 #[derive(AsChangeset, Insertable, Serialize, Deserialize)]
 #[diesel(table_name = users)]
 pub struct NewUser {
+    pub id: String,
     pub username: String,
     pub password: String,
 }
@@ -63,20 +64,23 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
         .prompt()
         .expect("Failed to get password");
 
-    let new_user = NewUser { username, password };
+    let new_user = NewUser { id: String::new(), username, password };
 
-    if let Ok(db_user) = backend_util::register_user(client, &new_user).await {
-        println!("User created: {}", db_user.username);
-        Some(User {
-            id: db_user.id,
-            token: String::new(),
-            username: db_user.username,
-            password: db_user.password,
-            collection: vec![],
-        })
-    } else {
-        println!("Failed to create user");
-        None
+    match backend_util::register_user(client, &new_user).await {
+        Ok(db_user) => {
+            println!("User '{}' created", db_user.username);
+            Some(User {
+                id: db_user.id,
+                token: String::new(),
+                username: db_user.username,
+                password: db_user.password,
+                collection: vec![],
+            })
+        }
+        Err(err) => {
+            println!("Failed to create user. {}", err);
+            None
+        }
     }
 }
 
@@ -112,7 +116,7 @@ impl User {
             if let Some(book) = books.get(&book.id) {
                 // println!("You selected: {}: {}", &book.id, book.volume_info);
                 self.collection.push(book.clone());
-                backend_util::create_book(client, self.token.as_str(), &book, self.id).await?;
+                backend_util::create_book(client, self.token.as_str(), &book, &self.id).await?;
             }
         }
 
@@ -133,7 +137,7 @@ impl User {
             self.collection
                 .retain(|book| !books_to_delete.contains(book));
             for book in books_to_delete {
-                backend_util::delete_book(client, self.token.as_str(), self.id, book.id).await?;
+                backend_util::delete_book(client, self.token.as_str(), &self.id, book.id).await?;
             }
         } else {
             println!("No books in your collection to download");

@@ -6,7 +6,7 @@ use reqwest::Client;
 use serde_json::json;
 
 use crate::{
-    models::Book,
+    models::{ApiResponse, Book},
     user::{NewUser, User},
 };
 
@@ -27,8 +27,7 @@ pub async fn register_user(
         .send()
         .await?;
     let response_body = response.text().await?;
-    let user = serde_json::from_str(&response_body)?;
-    Ok(user)
+    ApiResponse::<User>::from_response_body(&response_body)
 }
 
 pub async fn login_user(
@@ -38,6 +37,7 @@ pub async fn login_user(
 ) -> Result<User, Box<dyn std::error::Error>> {
     let credentials_json = json!(
         {
+            "id": "",
             "username": username,
             "password": password
         }
@@ -48,15 +48,28 @@ pub async fn login_user(
         .send()
         .await?;
     let response_body = response.text().await?;
-    let user = serde_json::from_str(&response_body)?;
-    Ok(user)
+    ApiResponse::<User>::from_response_body(&response_body)
+}
+
+pub async fn delete_user(
+    client: &Arc<Client>,
+    token: &str,
+    user_id: &str,
+) -> Result<usize, Box<dyn std::error::Error>> {
+    let response = client
+        .delete(format!("{}/users/{}", *BACKEND_URL, user_id))
+        .bearer_auth(token)
+        .send()
+        .await?;
+    let response_body = response.text().await?;
+    ApiResponse::<usize>::from_response_body(&response_body)
 }
 
 pub async fn create_book(
     client: &Arc<Client>,
     token: &str,
     book: &Book,
-    user_id: i32,
+    user_id: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
         .post(format!("{}/users/{}/books", *BACKEND_URL, user_id))
@@ -65,22 +78,23 @@ pub async fn create_book(
         .send()
         .await?;
     let response_body = response.text().await?;
-    let inserted_rows = serde_json::from_str(&response_body)?;
-    Ok(inserted_rows)
+    ApiResponse::<usize>::from_response_body(&response_body)
 }
 
 pub async fn delete_book(
     client: &Arc<Client>,
     token: &str,
-    user_id: i32,
+    user_id: &str,
     book_id: String,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
-        .delete(format!("{}/users/{}/books/{}", *BACKEND_URL, user_id, book_id))
+        .delete(format!(
+            "{}/users/{}/books/{}",
+            *BACKEND_URL, user_id, book_id
+        ))
         .bearer_auth(token)
         .send()
         .await?;
     let response_body = response.text().await?;
-    let inserted_rows = serde_json::from_str(&response_body)?;
-    Ok(inserted_rows)
+    ApiResponse::<usize>::from_response_body(&response_body)
 }

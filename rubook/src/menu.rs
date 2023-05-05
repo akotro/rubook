@@ -1,7 +1,11 @@
 use std::sync::Arc;
 
 use reqwest::Client;
-use rubook_lib::{user::{login, register, User}, libgen_util::parse_mirrors};
+use rubook_lib::{
+    backend_util::delete_user,
+    libgen_util::parse_mirrors,
+    user::{login, register, User},
+};
 
 #[derive(Debug)]
 pub enum LoginMenuOption {
@@ -26,6 +30,7 @@ pub enum MainMenuOption {
     ViewCollection,
     DeleteBooks,
     DownloadBook,
+    DeleteAccount,
     Exit,
 }
 
@@ -36,13 +41,14 @@ impl std::fmt::Display for MainMenuOption {
             MainMenuOption::ViewCollection => write!(f, "View your collection"),
             MainMenuOption::DeleteBooks => write!(f, "Delete books from your collection"),
             MainMenuOption::DownloadBook => write!(f, "Download a book from your collection"),
+            MainMenuOption::DeleteAccount => write!(f, "Delete your account"),
             MainMenuOption::Exit => write!(f, "Exit"),
         }
     }
 }
 
-fn confirm_retry() -> bool {
-    let retry = inquire::Confirm::new("Try again?")
+fn confirm(message: &str) -> bool {
+    let retry = inquire::Confirm::new(message)
         .with_default(false)
         .prompt();
     match retry {
@@ -55,20 +61,6 @@ fn confirm_retry() -> bool {
     }
 }
 
-fn confirm_exit() -> bool {
-    let really_exit = inquire::Confirm::new("Do you really want to exit?")
-        .with_default(false)
-        .prompt();
-    match really_exit {
-        Ok(true) => true,
-        Ok(false) => false,
-        Err(_) => {
-            println!("Error, try again later");
-            true
-        }
-    }
-}
-
 pub async fn main_loop(client: Arc<Client>) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         if let Some(mut user) = login_menu(&client).await {
@@ -76,7 +68,7 @@ pub async fn main_loop(client: Arc<Client>) -> Result<(), Box<dyn std::error::Er
             break;
         }
 
-        if confirm_exit() {
+        if confirm("Do you really want to exit?") {
             println!("Later...");
             break;
         }
@@ -100,14 +92,14 @@ pub async fn login_menu(client: &Arc<Client>) -> Option<User> {
                 LoginMenuOption::Login => {
                     if let Some(user) = login(client).await {
                         break Some(user);
-                    } else if !confirm_retry() {
+                    } else if !confirm("Try again?") {
                         break None;
                     }
                 }
                 LoginMenuOption::Register => {
                     if let Some(user) = register(client).await {
                         break Some(user);
-                    } else if !confirm_retry() {
+                    } else if !confirm("Try again?") {
                         break None;
                     }
                 }
@@ -132,6 +124,7 @@ pub async fn main_menu(
             MainMenuOption::ViewCollection,
             MainMenuOption::DownloadBook,
             MainMenuOption::DeleteBooks,
+            MainMenuOption::DeleteAccount,
             MainMenuOption::Exit,
         ];
         let selection = inquire::Select::new(
@@ -143,7 +136,7 @@ pub async fn main_menu(
         match selection {
             Ok(selection) => match selection {
                 MainMenuOption::Exit => {
-                    if confirm_exit() {
+                    if confirm("Do you really want to exit?") {
                         println!("Later...");
                         break;
                     }
@@ -166,6 +159,15 @@ pub async fn main_menu(
                 MainMenuOption::DownloadBook => {
                     if let Err(e) = user.download_books(&client, &mut mirror_handles).await {
                         eprintln!("Error downloading books: {}", e);
+                    }
+                }
+                MainMenuOption::DeleteAccount => {
+                    if confirm("Do you really want to delete your account?") {
+                        if let Err(e) = delete_user(&client, &user.token, &user.id).await {
+                            eprintln!("Error: {}", e);
+                        }
+                        *user = User::default();
+                        break;
                     }
                 }
             },

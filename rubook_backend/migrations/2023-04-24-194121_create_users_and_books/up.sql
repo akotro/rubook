@@ -1,14 +1,21 @@
 -- Your SQL goes here
 CREATE TABLE users (
-    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    id CHAR(36) PRIMARY KEY,
     username TEXT NOT NULL,
     password TEXT NOT NULL
 );
 
 CREATE TABLE books (
-    id VARCHAR(255) PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    id VARCHAR(255) PRIMARY KEY
+);
+
+-- Create a new join table to associate users with books
+CREATE TABLE user_books (
+    id INTEGER PRIMARY KEY AUTO_INCREMENT,
+    user_id CHAR(36) NOT NULL,
+    book_id VARCHAR(255) NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (book_id) REFERENCES books(id) ON DELETE CASCADE
 );
 
 CREATE TABLE volume_infos (

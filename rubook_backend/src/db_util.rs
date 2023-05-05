@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use diesel::result::{DatabaseErrorKind, Error};
 use diesel::{prelude::*, r2d2::ConnectionManager};
 use diesel_migrations::MigrationHarness;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
@@ -8,10 +9,12 @@ use rubook_lib::models::{
     AccessInfo, Book, BookFormat, DbAccessInfo, DbAuthor, DbBook, DbIndustryIdentifier,
     DbVolumeInfo, IndustryIdentifier, VolumeInfo,
 };
-use rubook_lib::schema::{access_infos, authors, books, industry_identifiers, users, volume_infos};
+use rubook_lib::schema::{
+    access_infos, authors, books, industry_identifiers, user_books, users, volume_infos,
+};
 use rubook_lib::user::{DbUser, NewUser, User};
 use serde::{Deserialize, Serialize};
-use std::env;
+use std::{env, fmt};
 
 use dotenvy::dotenv;
 
@@ -22,6 +25,23 @@ const SANDBOX_DB: &str = "DATABASE_URL_SANDBOX";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub type MySqlPool = Pool<ConnectionManager<MysqlConnection>>;
+
+#[derive(Debug)]
+pub enum DbError {
+    UserAlreadyExists(String),
+}
+
+impl fmt::Display for DbError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            DbError::UserAlreadyExists(username) => {
+                write!(f, "User already exists with username: {}", username)
+            }
+        }
+    }
+}
+
+impl std::error::Error for DbError {}
 
 pub fn init_database() -> MySqlPool {
     dotenv().ok();
@@ -51,6 +71,21 @@ pub fn get_users(conn: &mut MysqlConnection) -> QueryResult<Vec<DbUser>> {
 }
 
 pub fn create_user(conn: &mut MysqlConnection, new_user: &NewUser) -> QueryResult<DbUser> {
+    let existing_user = users::table
+        .filter(users::username.eq(&new_user.username))
+        .first::<DbUser>(conn)
+        .optional()?;
+
+    if let Some(_) = existing_user {
+        return Err(Error::DatabaseError(
+            DatabaseErrorKind::UniqueViolation,
+            Box::new(format!(
+                "User already exists with username: {}",
+                new_user.username
+            )),
+        ));
+    }
+
     diesel::insert_into(users::table)
         .values(new_user)
         .execute(conn)?;
@@ -58,24 +93,10 @@ pub fn create_user(conn: &mut MysqlConnection, new_user: &NewUser) -> QueryResul
     users::table.order(users::id.desc()).first(conn)
 }
 
-pub fn get_user_by_id(conn: &mut MysqlConnection, user_id: i32) -> QueryResult<User> {
+pub fn get_user_by_id(conn: &mut MysqlConnection, user_id: &str) -> QueryResult<User> {
     let db_user = users::table.find(user_id).first::<DbUser>(conn)?;
 
-    let db_books = books::table
-        .filter(books::user_id.eq(user_id))
-        .load::<DbBook>(conn)?;
-
-    let mut collection = Vec::new();
-    for db_book in db_books {
-        let volume_info = get_volume_info_by_book_id(conn, &db_book.id)?;
-        let access_info = get_access_info_by_book_id(conn, &db_book.id)?;
-        collection.push(Book {
-            id: db_book.id,
-            // user_id: db_book.user_id,
-            volume_info,
-            access_info,
-        });
-    }
+    let collection = get_books_by_user_id(conn, user_id)?;
 
     Ok(User {
         id: db_user.id,
@@ -96,7 +117,7 @@ pub fn get_user_by_credentials(
         .filter(users::password.eq(password))
         .first::<DbUser>(conn)?;
 
-    let collection = get_books_by_user_id(conn, db_user.id)?;
+    let collection = get_books_by_user_id(conn, &db_user.id)?;
 
     Ok(User {
         id: db_user.id,
@@ -107,8 +128,9 @@ pub fn get_user_by_credentials(
     })
 }
 
-pub fn update_user(conn: &mut MysqlConnection, user_id: i32, user: &User) -> QueryResult<usize> {
+pub fn update_user(conn: &mut MysqlConnection, user_id: &str, user: &User) -> QueryResult<usize> {
     let updated_user = NewUser {
+        id: user.id.clone(),
         username: user.username.clone(),
         password: user.password.clone(),
     };
@@ -118,48 +140,67 @@ pub fn update_user(conn: &mut MysqlConnection, user_id: i32, user: &User) -> Que
         .execute(conn)
 }
 
-pub fn delete_user(conn: &mut MysqlConnection, user_id: i32) -> QueryResult<usize> {
+pub fn delete_user(conn: &mut MysqlConnection, user_id: &str) -> QueryResult<usize> {
     diesel::delete(users::table.find(user_id)).execute(conn)
 }
 
 // NOTE:(akotro) Books
 
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
+#[derive(Insertable, Serialize, Deserialize)]
 #[diesel(table_name = books)]
 pub struct NewBook {
     pub id: String,
-    pub user_id: i32,
 }
 
-pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: i32) -> QueryResult<usize> {
+pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: &str) -> QueryResult<usize> {
     let new_book = NewBook {
         id: book.id.clone(),
-        user_id,
     };
 
     let rows_inserted = conn.transaction::<_, diesel::result::Error, _>(|transaction_context| {
-        let rows_inserted = diesel::insert_into(books::table)
-            .values(&new_book)
+        let book_exists = books::table
+            .filter(books::id.eq(&new_book.id))
+            .first::<DbBook>(transaction_context)
+            .optional()?
+            .is_some();
+
+        if !book_exists {
+            println!("Book does not exist. Inserting...");
+            diesel::insert_into(books::table)
+                .values(&new_book)
+                .execute(transaction_context)?;
+
+            create_volume_info(transaction_context, &book.id, &book.volume_info)?;
+            create_access_info(transaction_context, &book.id, &book.access_info)?;
+            let empty_vec: Vec<String> = Vec::new();
+            create_authors(
+                transaction_context,
+                &book.id,
+                &book.volume_info.authors.as_ref().unwrap_or(&empty_vec),
+            )?;
+        }
+
+        diesel::insert_into(user_books::table)
+            .values((
+                user_books::user_id.eq(user_id),
+                user_books::book_id.eq(&new_book.id),
+            ))
             .execute(transaction_context)?;
 
-        create_volume_info(transaction_context, &book.id, &book.volume_info)?;
-        create_access_info(transaction_context, &book.id, &book.access_info)?;
-        let empty_vec: Vec<String> = Vec::new();
-        create_authors(
-            transaction_context,
-            &book.id,
-            &book.volume_info.authors.as_ref().unwrap_or(&empty_vec),
-        )?;
-
-        Ok(rows_inserted)
+        Ok(1)
     })?;
 
     Ok(rows_inserted)
 }
 
-pub fn get_books_by_user_id(conn: &mut MysqlConnection, db_user_id: i32) -> QueryResult<Vec<Book>> {
+pub fn get_books_by_user_id(
+    conn: &mut MysqlConnection,
+    db_user_id: &str,
+) -> QueryResult<Vec<Book>> {
     let db_books = books::table
-        .filter(books::user_id.eq(db_user_id))
+        .inner_join(user_books::table.on(books::id.eq(user_books::book_id)))
+        .filter(user_books::user_id.eq(db_user_id))
+        .select(books::all_columns)
         .load::<DbBook>(conn)?;
 
     let mut collection = Vec::new();
@@ -180,38 +221,20 @@ pub fn get_book_by_id(conn: &mut MysqlConnection, book_id: &str) -> QueryResult<
     let db_book = books::table.find(book_id).first::<DbBook>(conn)?;
 
     let volume_info_ = get_volume_info_by_book_id(conn, &db_book.id)?;
-
     let access_info_ = get_access_info_by_book_id(conn, &db_book.id)?;
 
     Ok(Book {
         id: db_book.id,
-        // user_id: db_book.user_id,
         volume_info: volume_info_,
         access_info: access_info_,
     })
 }
 
-pub fn update_book(
-    conn: &mut MysqlConnection,
-    book_id: &str,
-    book: &Book,
-    user_id: i32,
-) -> QueryResult<usize> {
-    let updated_book = NewBook {
-        id: book.id.clone(),
-        user_id,
-    };
-
-    diesel::update(books::table.find(book_id))
-        .set(&updated_book)
-        .execute(conn)
-}
-
-pub fn delete_book(conn: &mut MysqlConnection, user_id: i32, book_id: &str) -> QueryResult<usize> {
+pub fn delete_book(conn: &mut MysqlConnection, user_id: &str, book_id: &str) -> QueryResult<usize> {
     diesel::delete(
-        books::table
-            .filter(books::user_id.eq(user_id))
-            .find(book_id),
+        user_books::table
+            .filter(user_books::user_id.eq(user_id))
+            .filter(user_books::book_id.eq(book_id)),
     )
     .execute(conn)
 }
@@ -400,9 +423,9 @@ pub fn create_authors(
         .execute(conn)
 }
 
-fn get_authors(conn: &mut MysqlConnection, book: &Book) -> QueryResult<Vec<DbAuthor>> {
+fn get_authors_by_book_id(conn: &mut MysqlConnection, book_id: &str) -> QueryResult<Vec<DbAuthor>> {
     authors::table
-        .filter(authors::book_id.eq(&book.id))
+        .filter(authors::book_id.eq(book_id))
         .load::<DbAuthor>(conn)
 }
 
