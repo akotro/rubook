@@ -20,7 +20,7 @@ use rubook_lib::{
 use uuid::Uuid;
 
 use crate::{
-    auth::generate_token,
+    auth::{generate_password_hash, generate_token, validate_password},
     db_util::{
         create_book, create_user, delete_book, delete_user, get_book_by_id, get_books_by_user_id,
         get_connection, get_user_by_credentials, get_user_by_id, get_users, update_user, MySqlPool,
@@ -36,8 +36,16 @@ async fn register_user_route(
     mut new_user: web::Json<NewUser>,
 ) -> HttpResponse {
     new_user.0.id = Uuid::new_v4().to_string();
-    println!("id: {}", new_user.0.id);
     let username = new_user.0.username.clone();
+
+    let hashed_password = match generate_password_hash(new_user.0.password.clone()) {
+        Ok(password) => password,
+        Err(error) => {
+            return HttpResponse::InternalServerError()
+                .json(ApiResponse::<()>::error(error.to_string()))
+        }
+    };
+    new_user.0.password = hashed_password;
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
@@ -73,19 +81,26 @@ async fn login_user_route(
     credentials: web::Json<NewUser>,
 ) -> HttpResponse {
     let username = credentials.0.username.clone();
+    let password = credentials.0.password.clone();
 
     let result = web::block(move || {
         let mut conn = get_connection(&pool);
-        get_user_by_credentials(&mut conn, &credentials.username, &credentials.password)
+        get_user_by_credentials(&mut conn, &credentials.0.username.clone())
     })
     .await;
 
     match result {
         Ok(users_result) => match users_result {
             Ok(mut user) => {
-                let token = generate_token(&req, username);
-                user.token = token;
-                HttpResponse::Found().json(ApiResponse::success(user))
+                let is_valid_password = validate_password(&user.password, &password);
+                if is_valid_password {
+                    let token = generate_token(&req, username);
+                    user.token = token;
+                    HttpResponse::Found().json(ApiResponse::success(user))
+                } else {
+                    HttpResponse::Unauthorized()
+                        .json(ApiResponse::<()>::error("Invalid credentials".to_string()))
+                }
             }
             Err(error) => HttpResponse::InternalServerError()
                 .json(ApiResponse::<()>::error(error.to_string())),

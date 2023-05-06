@@ -107,14 +107,9 @@ pub fn get_user_by_id(conn: &mut MysqlConnection, user_id: &str) -> QueryResult<
     })
 }
 
-pub fn get_user_by_credentials(
-    conn: &mut MysqlConnection,
-    username: &str,
-    password: &str,
-) -> QueryResult<User> {
+pub fn get_user_by_credentials(conn: &mut MysqlConnection, username: &str) -> QueryResult<User> {
     let db_user = users::table
         .filter(users::username.eq(username))
-        .filter(users::password.eq(password))
         .first::<DbUser>(conn)?;
 
     let collection = get_books_by_user_id(conn, &db_user.id)?;

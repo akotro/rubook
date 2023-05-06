@@ -1,6 +1,35 @@
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use actix_web::{web, HttpRequest, HttpResponse};
+use argon2::{
+    password_hash::{rand_core::OsRng, SaltString},
+    Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
+};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rubook_lib::user::UserClaims;
+
+pub fn generate_password_hash(password: String) -> Result<String, argon2::password_hash::Error> {
+    let argon2 = Argon2::default();
+    let salt = SaltString::generate(&mut OsRng);
+    let password_hash = argon2
+        .hash_password(password.as_bytes(), &salt)?
+        .to_string();
+
+    Ok(password_hash)
+}
+
+pub fn validate_password(stored_hash: &str, password: &str) -> bool {
+    let parsed_hash = match PasswordHash::new(stored_hash) {
+        Ok(hash) => hash,
+        Err(_) => return false,
+    };
+
+    let argon2 = Argon2::default();
+    match argon2.verify_password(password.as_bytes(), &parsed_hash) {
+        Ok(()) => true,
+        Err(_) => false,
+    }
+}
 
 pub fn generate_token(req: &HttpRequest, username: String) -> String {
     let claims = UserClaims {
@@ -34,11 +63,21 @@ pub fn validate_token(req: &HttpRequest) -> Result<(), HttpResponse> {
         .expect("Missing app data: secret key")
         .as_ref();
 
-    decode::<UserClaims>(
+    let validation = Validation::default();
+    let user_claims = decode::<UserClaims>(
         token,
         &DecodingKey::from_secret(secret_key.as_bytes().as_ref()),
-        &Validation::default(),
+        &validation,
     )
-    .map(|_| ())
-    .map_err(|_| HttpResponse::Unauthorized().finish())
+    .map_err(|_| HttpResponse::Unauthorized().finish())?;
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards")
+        .as_secs() as usize;
+    if user_claims.claims.exp < now {
+        return Err(HttpResponse::Unauthorized().finish());
+    }
+
+    Ok(())
 }
