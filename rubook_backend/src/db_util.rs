@@ -167,11 +167,25 @@ pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: &str) -> Qu
 
             create_volume_info(transaction_context, &book.id, &book.volume_info)?;
             create_access_info(transaction_context, &book.id, &book.access_info)?;
-            let empty_vec: Vec<String> = Vec::new();
+            let empty_author_vec: Vec<String> = Vec::new();
             create_authors(
                 transaction_context,
                 &book.id,
-                &book.volume_info.authors.as_ref().unwrap_or(&empty_vec),
+                &book
+                    .volume_info
+                    .authors
+                    .as_ref()
+                    .unwrap_or(&empty_author_vec),
+            )?;
+            let empty_industry_identifier_vec: Vec<IndustryIdentifier> = Vec::new();
+            create_industry_identifiers(
+                transaction_context,
+                &book.id,
+                &book
+                    .volume_info
+                    .industry_identifiers
+                    .as_ref()
+                    .unwrap_or(&empty_industry_identifier_vec),
             )?;
         }
 
@@ -274,19 +288,13 @@ pub fn get_volume_info_by_book_id(
         .filter(volume_infos::book_id.eq(book_id))
         .first::<DbVolumeInfo>(conn)?;
 
-    let db_authors = authors::table
-        .filter(authors::book_id.eq(book_id))
-        .load::<DbAuthor>(conn)?;
-
+    let db_authors = get_authors_by_book_id(conn, book_id)?;
     let authors: Vec<String> = db_authors
         .into_iter()
         .map(|db_author| db_author.name)
         .collect();
 
-    let db_industry_identifiers = industry_identifiers::table
-        .filter(industry_identifiers::book_id.eq(book_id))
-        .load::<DbIndustryIdentifier>(conn)?;
-
+    let db_industry_identifiers = get_industry_identifiers_by_book_id(conn, book_id)?;
     let industry_identifiers: Vec<IndustryIdentifier> = db_industry_identifiers
         .into_iter()
         .map(|db_industry_identifier| IndustryIdentifier {
@@ -437,4 +445,90 @@ fn update_author(
 
 fn delete_authors(conn: &mut MysqlConnection, book: &Book) -> QueryResult<usize> {
     diesel::delete(authors::table.filter(authors::book_id.eq(&book.id))).execute(conn)
+}
+
+// NOTE:(akotro) Industry Identifiers
+
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
+#[diesel(table_name = industry_identifiers)]
+struct NewIndustryIdentifier<'a> {
+    book_id: &'a str,
+    isbn_type: &'a str,
+    identifier: &'a str,
+}
+
+pub fn create_industry_identifiers(
+    conn: &mut MysqlConnection,
+    book_id: &str,
+    industry_identifiers: &Vec<IndustryIdentifier>,
+) -> QueryResult<usize> {
+    let new_industry_identifiers: Vec<NewIndustryIdentifier> = industry_identifiers
+        .iter()
+        .map(|industry_identifier| NewIndustryIdentifier {
+            book_id,
+            isbn_type: &industry_identifier.isbn_type,
+            identifier: &industry_identifier.identifier,
+        })
+        .collect();
+
+    diesel::insert_into(industry_identifiers::table)
+        .values(&new_industry_identifiers)
+        .execute(conn)
+}
+
+pub fn get_industry_identifiers_by_book_id(
+    conn: &mut MysqlConnection,
+    book_id: &str,
+) -> QueryResult<Vec<IndustryIdentifier>> {
+    let db_industry_identifiers = industry_identifiers::table
+        .filter(industry_identifiers::book_id.eq(book_id))
+        .load::<DbIndustryIdentifier>(conn)?;
+
+    Ok(db_industry_identifiers
+        .iter()
+        .map(|db_industry_identifier| IndustryIdentifier {
+            isbn_type: db_industry_identifier.isbn_type.clone(),
+            identifier: db_industry_identifier.identifier.clone(),
+        })
+        .collect())
+}
+
+pub fn update_industry_identifiers(
+    conn: &mut MysqlConnection,
+    book_id: &str,
+    industry_identifiers: &Vec<IndustryIdentifier>,
+) -> QueryResult<usize> {
+    let updated_industry_identifiers: Vec<NewIndustryIdentifier> = industry_identifiers
+        .iter()
+        .map(|industry_identifier| NewIndustryIdentifier {
+            book_id,
+            isbn_type: &industry_identifier.isbn_type,
+            identifier: &industry_identifier.identifier,
+        })
+        .collect();
+
+    let updated_rows = updated_industry_identifiers.len();
+
+    for updated_industry_identifier in updated_industry_identifiers {
+        diesel::update(
+            industry_identifiers::table
+                .filter(industry_identifiers::book_id.eq(book_id))
+                .filter(industry_identifiers::isbn_type.eq(updated_industry_identifier.isbn_type))
+                .filter(
+                    industry_identifiers::identifier.eq(updated_industry_identifier.identifier),
+                ),
+        )
+        .set(&updated_industry_identifier)
+        .execute(conn)?;
+    }
+
+    Ok(updated_rows)
+}
+
+pub fn delete_industry_identifiers(
+    conn: &mut MysqlConnection,
+    book_id: &str,
+) -> QueryResult<usize> {
+    diesel::delete(industry_identifiers::table.filter(industry_identifiers::book_id.eq(book_id)))
+        .execute(conn)
 }
