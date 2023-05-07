@@ -23,6 +23,7 @@ pub struct User {
 
 impl fmt::Display for User {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        println!("\n{}'s collection:\n", self.username);
         if !self.collection.is_empty() {
             self.collection
                 .iter()
@@ -64,7 +65,11 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
         .prompt()
         .expect("Failed to get password");
 
-    let new_user = NewUser { id: String::new(), username, password };
+    let new_user = NewUser {
+        id: String::new(),
+        username,
+        password,
+    };
 
     match backend_util::register_user(client, &new_user).await {
         Ok(db_user) => {
@@ -104,6 +109,14 @@ pub async fn login(client: &Arc<Client>) -> Option<User> {
 }
 
 impl User {
+    pub fn view_collection(&self) -> Result<(), Box<dyn std::error::Error>> {
+        let selected_book =
+            Select::new("Select books to view:", self.collection.clone()).prompt()?;
+        selected_book.print_book_info()?;
+
+        Ok(())
+    }
+
     pub async fn add_books(
         &mut self,
         client: &Arc<Client>,

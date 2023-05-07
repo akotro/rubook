@@ -11,8 +11,69 @@ pub struct Book {
     pub access_info: AccessInfo,
 }
 
+impl Book {
+    pub fn print_book_info(&self) -> Result<(), &'static str> {
+        println!("Volume Info: {:?}", self.volume_info);
+        println!("Access Info: {:?}", self.access_info);
+
+        Ok(())
+        // println!("ID: {}", self.id);
+        // println!(
+        //     "Title: {}",
+        //     self.volume_info.title.as_ref().unwrap_or(&"".to_string())
+        // );
+        // println!(
+        //     "Subtitle: {}",
+        //     self.volume_info
+        //         .subtitle
+        //         .as_ref()
+        //         .unwrap_or(&"".to_string())
+        // );
+        // println!(
+        //     "Publisher: {}",
+        //     self.volume_info
+        //         .publisher
+        //         .as_ref()
+        //         .unwrap_or(&"".to_string())
+        // );
+        // println!(
+        //     "Published Date: {}",
+        //     self.volume_info
+        //         .published_date
+        //         .as_ref()
+        //         .unwrap_or(&"".to_string())
+        // );
+        // println!(
+        //     "Description: {}",
+        //     self.volume_info
+        //         .description
+        //         .as_ref()
+        //         .unwrap_or(&"".to_string())
+        // );
+        // println!(
+        //     "Authors: {:?}",
+        //     self.volume_info.authors.as_ref().unwrap_or(&vec![])
+        // );
+        // println!(
+        //     "Industry Identifiers: {:?}",
+        //     self.volume_info
+        //         .industry_identifiers
+        //         .as_ref()
+        //         .unwrap_or(&vec![])
+        // );
+        // println!("Available EPUB: {}", self.access_info.epub.is_available);
+        // println!("Available PDF: {}", self.access_info.pdf.is_available);
+        // Ok(())
+    }
+}
+
 impl fmt::Display for Book {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // write!(
+        //     f,
+        //     "Book Info: {},\nAccess Info: {}",
+        //     self.volume_info, self.access_info
+        // )
         write!(f, "{}", self.volume_info.clone())
     }
 }
@@ -20,7 +81,6 @@ impl fmt::Display for Book {
 #[derive(Queryable, Serialize, Deserialize, Debug)]
 pub struct DbBook {
     pub id: String,
-    // pub user_id: i32,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
