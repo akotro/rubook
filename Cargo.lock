@@ -1529,7 +1529,6 @@ dependencies = [
 name = "rubook"
 version = "0.1.0"
 dependencies = [
- "dotenvy",
  "inquire",
  "reqwest",
  "rubook_lib",
@@ -1561,7 +1560,6 @@ version = "0.1.0"
 dependencies = [
  "bytes",
  "diesel",
- "dotenvy",
  "inquire",
  "lazy_static",
  "regex",

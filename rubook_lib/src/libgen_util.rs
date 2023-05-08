@@ -14,7 +14,15 @@ use inquire::Select;
 use reqwest::{header::CONTENT_DISPOSITION, Client, Response};
 use tokio::task::JoinHandle;
 
-use crate::{models::Book, libgen::{mirrors::{Mirror, MirrorType, MirrorList}, search::{SearchType, search_non_fiction, search_fiction}, download::{download_book, download_book_fiction}, models::LibgenBook}};
+use crate::{
+    libgen::{
+        download::{download_book, download_book_fiction},
+        mirrors::{Mirror, MirrorList, MirrorType},
+        models::LibgenBook,
+        search::{search_fiction, search_non_fiction, SearchType},
+    },
+    models::Book,
+};
 
 pub async fn libgen_book_download(
     book: Book,
@@ -155,7 +163,11 @@ fn parse_filename(content_disposition: &str) -> Option<String> {
 }
 
 pub fn parse_mirrors() -> MirrorList {
-    let mirror_path = "resources/mirrors.json";
+    let mirror_path = if cfg!(debug_assertions) {
+        "resources/mirrors.json"
+    } else {
+        "mirrors.json"
+    };
     let json = from_utf8(&read(mirror_path).expect("Couldn't read mirrors from json"))
         .unwrap()
         .to_owned();

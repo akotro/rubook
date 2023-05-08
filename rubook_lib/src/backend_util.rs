@@ -1,7 +1,5 @@
-use std::{env, sync::Arc};
+use std::sync::Arc;
 
-use dotenvy::dotenv;
-use lazy_static::lazy_static;
 use reqwest::Client;
 use serde_json::json;
 
@@ -10,19 +8,21 @@ use crate::{
     user::{NewUser, User},
 };
 
-lazy_static! {
-    pub static ref BACKEND_URL: String = {
-        dotenv().ok();
-        env::var("BACKEND_URL").expect("BACKEND_URL must be set")
-    };
-}
+// lazy_static! {
+//     pub static ref BACKEND_URL: String = {
+//         dotenv().ok();
+//         env::var("BACKEND_URL").expect("BACKEND_URL must be set")
+//     };
+// }
+
+pub static BACKEND_URL: &str = "http://64.226.108.119:8080/rubook";
 
 pub async fn register_user(
     client: &Arc<Client>,
     new_user: &NewUser,
 ) -> Result<User, Box<dyn std::error::Error>> {
     let response = client
-        .post(format!("{}/auth/register", *BACKEND_URL))
+        .post(format!("{}/auth/register", BACKEND_URL))
         .json(&new_user)
         .send()
         .await?;
@@ -43,7 +43,7 @@ pub async fn login_user(
         }
     );
     let response = client
-        .post(format!("{}/auth/login", *BACKEND_URL))
+        .post(format!("{}/auth/login", BACKEND_URL))
         .json(&credentials_json)
         .send()
         .await?;
@@ -57,7 +57,7 @@ pub async fn delete_user(
     user_id: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
-        .delete(format!("{}/users/{}", *BACKEND_URL, user_id))
+        .delete(format!("{}/users/{}", BACKEND_URL, user_id))
         .bearer_auth(token)
         .send()
         .await?;
@@ -72,7 +72,7 @@ pub async fn create_book(
     user_id: &str,
 ) -> Result<usize, Box<dyn std::error::Error>> {
     let response = client
-        .post(format!("{}/users/{}/books", *BACKEND_URL, user_id))
+        .post(format!("{}/users/{}/books", BACKEND_URL, user_id))
         .bearer_auth(token)
         .json(&book)
         .send()
@@ -90,7 +90,7 @@ pub async fn delete_book(
     let response = client
         .delete(format!(
             "{}/users/{}/books/{}",
-            *BACKEND_URL, user_id, book_id
+            BACKEND_URL, user_id, book_id
         ))
         .bearer_auth(token)
         .send()

@@ -1,14 +1,12 @@
 use rubook_lib::models::{Book, Response};
 
-use std::{collections::HashMap, env};
+use std::collections::HashMap;
 
-use dotenvy::dotenv;
 use inquire::Text;
 
-pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::Error>> {
-    dotenv().ok();
-    let google_api_key = env::var("GOOGLE_API_KEY").expect("GOOGLE_API_KEY not set");
+pub static GOOGLE_API_KEY: &str = "AIzaSyDw6fJHKUVUaLwTNbpVLmFUoa8KNeELXtQ";
 
+pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::Error>> {
     let mut books = HashMap::new();
 
     let book_query = Text::new("Search for a book:").prompt();
@@ -19,11 +17,10 @@ pub async fn book_search() -> Result<HashMap<String, Book>, Box<dyn std::error::
 
             let url = format!(
                 "https://www.googleapis.com/books/v1/volumes?q={}&key={}",
-                book_query, google_api_key
+                book_query, GOOGLE_API_KEY
             );
 
             let response_text = reqwest::get(&url).await?.text().await?;
-            // println!("response json: {}", response_text);
             let response = serde_json::from_str::<Response>(&response_text);
 
             match response {
