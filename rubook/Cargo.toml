@@ -2,6 +2,7 @@
 name = "rubook"
 version = "0.1.0"
 edition = "2021"
+repository = "https://github.com/akotro/rubook"
 
 [[bin]]
 name = "rubook"
