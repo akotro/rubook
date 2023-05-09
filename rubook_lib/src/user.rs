@@ -1,7 +1,6 @@
 use core::fmt;
 use std::{collections::HashMap, sync::Arc};
 
-use diesel::{AsChangeset, Insertable, Queryable};
 use inquire::{min_length, MultiSelect, Password, PasswordDisplayMode, Select, Text};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -9,7 +8,6 @@ use tokio::task::JoinHandle;
 
 use crate::{
     backend_util, libgen::mirrors::Mirror, libgen_util::libgen_book_download, models::Book,
-    schema::users,
 };
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -34,21 +32,6 @@ impl fmt::Display for User {
     }
 }
 
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbUser {
-    pub id: String,
-    pub username: String,
-    pub password: String,
-}
-
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = users)]
-pub struct NewUser {
-    pub id: String,
-    pub username: String,
-    pub password: String,
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct UserClaims {
     pub sub: String,
@@ -65,13 +48,7 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
         .prompt()
         .expect("Failed to get password");
 
-    let new_user = NewUser {
-        id: String::new(),
-        username,
-        password,
-    };
-
-    match backend_util::register_user(client, &new_user).await {
+    match backend_util::register_user(client, username, password).await {
         Ok(db_user) => {
             println!("User '{}' created", db_user.username);
             Some(User {

@@ -5,18 +5,17 @@ use diesel::{prelude::*, r2d2::ConnectionManager};
 use diesel_migrations::MigrationHarness;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use r2d2::Pool;
-use rubook_lib::models::{
-    AccessInfo, Book, BookFormat, DbAccessInfo, DbAuthor, DbBook, DbIndustryIdentifier,
-    DbVolumeInfo, IndustryIdentifier, VolumeInfo,
-};
-use rubook_lib::schema::{
-    access_infos, authors, books, industry_identifiers, user_books, users, volume_infos,
-};
-use rubook_lib::user::{DbUser, NewUser, User};
-use serde::{Deserialize, Serialize};
+use rubook_lib::models::{AccessInfo, Book, BookFormat, IndustryIdentifier, VolumeInfo};
+use rubook_lib::user::User;
 use std::{env, fmt};
 
 use dotenvy::dotenv;
+
+use crate::db_models::{
+    DbAccessInfo, DbAuthor, DbBook, DbIndustryIdentifier, DbUser, DbVolumeInfo, NewAccessInfo,
+    NewAuthor, NewBook, NewIndustryIdentifier, NewUser, NewVolumeInfo,
+};
+use crate::schema::*;
 
 // NOTE:(akotro) Database
 
@@ -141,12 +140,6 @@ pub fn delete_user(conn: &mut MysqlConnection, user_id: &str) -> QueryResult<usi
 
 // NOTE:(akotro) Books
 
-#[derive(Insertable, Serialize, Deserialize)]
-#[diesel(table_name = books)]
-pub struct NewBook {
-    pub id: String,
-}
-
 pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: &str) -> QueryResult<usize> {
     let new_book = NewBook {
         id: book.id.clone(),
@@ -250,17 +243,6 @@ pub fn delete_book(conn: &mut MysqlConnection, user_id: &str, book_id: &str) -> 
 
 // NOTE:(akotro) Book Volume Infos
 
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = volume_infos)]
-struct NewVolumeInfo<'a> {
-    book_id: &'a str,
-    title: Option<&'a str>,
-    subtitle: Option<&'a str>,
-    publisher: Option<&'a str>,
-    published_date: Option<&'a str>,
-    description: Option<&'a str>,
-}
-
 pub fn create_volume_info(
     conn: &mut MysqlConnection,
     book_id: &str,
@@ -340,14 +322,6 @@ pub fn delete_volume_info(conn: &mut MysqlConnection, book_id: &str) -> QueryRes
 
 // NOTE:(akotro) Book Access Infos
 
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = access_infos)]
-struct NewAccessInfo<'a> {
-    book_id: &'a str,
-    epub_is_available: bool,
-    pdf_is_available: bool,
-}
-
 pub fn create_access_info(
     conn: &mut MysqlConnection,
     book_id: &str,
@@ -404,13 +378,6 @@ pub fn delete_access_info(conn: &mut MysqlConnection, book_id: &str) -> QueryRes
 
 // NOTE:(akotro) Authors
 
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = authors)]
-struct NewAuthor<'a> {
-    book_id: &'a str,
-    name: &'a str,
-}
-
 pub fn create_authors(
     conn: &mut MysqlConnection,
     book_id: &str,
@@ -448,14 +415,6 @@ fn delete_authors(conn: &mut MysqlConnection, book: &Book) -> QueryResult<usize>
 }
 
 // NOTE:(akotro) Industry Identifiers
-
-#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
-#[diesel(table_name = industry_identifiers)]
-struct NewIndustryIdentifier<'a> {
-    book_id: &'a str,
-    isbn_type: &'a str,
-    identifier: &'a str,
-}
 
 pub fn create_industry_identifiers(
     conn: &mut MysqlConnection,

@@ -1,6 +1,5 @@
 use core::fmt;
 
-use diesel::Queryable;
 use serde::{Deserialize, Serialize};
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -78,11 +77,6 @@ impl fmt::Display for Book {
     }
 }
 
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbBook {
-    pub id: String,
-}
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct VolumeInfo {
@@ -108,35 +102,10 @@ impl fmt::Display for VolumeInfo {
     }
 }
 
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbVolumeInfo {
-    pub book_id: String,
-    pub title: Option<String>,
-    pub subtitle: Option<String>,
-    pub publisher: Option<String>,
-    pub published_date: Option<String>,
-    pub description: Option<String>,
-}
-
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbAuthor {
-    pub id: i32,
-    pub book_id: String,
-    pub name: String,
-}
-
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct IndustryIdentifier {
     #[serde(rename = "type")]
-    pub isbn_type: String,
-    pub identifier: String,
-}
-
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbIndustryIdentifier {
-    pub id: i32,
-    pub book_id: String,
     pub isbn_type: String,
     pub identifier: String,
 }
@@ -162,13 +131,6 @@ impl fmt::Display for AccessInfo {
 #[serde(rename_all = "camelCase")]
 pub struct BookFormat {
     pub is_available: bool,
-}
-
-#[derive(Queryable, Serialize, Deserialize, Debug)]
-pub struct DbAccessInfo {
-    pub book_id: String,
-    pub epub_is_available: bool,
-    pub pdf_is_available: bool,
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]

@@ -1559,7 +1559,6 @@ name = "rubook_lib"
 version = "0.1.0"
 dependencies = [
  "bytes",
- "diesel",
  "inquire",
  "lazy_static",
  "regex",

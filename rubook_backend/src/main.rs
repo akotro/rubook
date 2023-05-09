@@ -1,5 +1,7 @@
 mod auth;
 mod db_util;
+mod db_models;
+mod schema;
 
 use std::env;
 
@@ -15,7 +17,7 @@ use dotenvy::dotenv;
 use env_logger::Env;
 use rubook_lib::{
     models::{ApiResponse, Book},
-    user::{NewUser, User},
+    user::User,
 };
 use uuid::Uuid;
 
@@ -24,7 +26,7 @@ use crate::{
     db_util::{
         create_book, create_user, delete_book, delete_user, get_book_by_id, get_books_by_user_id,
         get_connection, get_user_by_credentials, get_user_by_id, get_users, update_user, MySqlPool,
-    },
+    }, db_models::NewUser,
 };
 
 const JWT_SECRET: &str = "JWT_SECRET";

@@ -5,7 +5,7 @@ use serde_json::json;
 
 use crate::{
     models::{ApiResponse, Book},
-    user::{NewUser, User},
+    user::User,
 };
 
 // lazy_static! {
@@ -19,11 +19,19 @@ pub static BACKEND_URL: &str = "http://64.226.108.119:8080/rubook";
 
 pub async fn register_user(
     client: &Arc<Client>,
-    new_user: &NewUser,
+    username: String,
+    password: String,
 ) -> Result<User, Box<dyn std::error::Error>> {
+    let new_user_json = json!(
+        {
+            "id": "",
+            "username": username,
+            "password": password
+        }
+    );
     let response = client
         .post(format!("{}/auth/register", BACKEND_URL))
-        .json(&new_user)
+        .json(&new_user_json)
         .send()
         .await?;
     let response_body = response.text().await?;
