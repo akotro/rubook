@@ -32,6 +32,27 @@ diesel::table! {
 }
 
 diesel::table! {
+    ip_blacklist (id) {
+        id -> Integer,
+        ip_address -> Varchar,
+    }
+}
+
+diesel::table! {
+    mirrors (id) {
+        id -> Integer,
+        host_url -> Text,
+        search_url -> Nullable<Text>,
+        search_url_fiction -> Nullable<Text>,
+        download_url -> Nullable<Text>,
+        download_url_fiction -> Nullable<Text>,
+        download_pattern -> Nullable<Text>,
+        sync_url -> Nullable<Text>,
+        cover_pattern -> Nullable<Text>,
+    }
+}
+
+diesel::table! {
     user_books (id) {
         id -> Integer,
         user_id -> Char,
@@ -70,6 +91,8 @@ diesel::allow_tables_to_appear_in_same_query!(
     authors,
     books,
     industry_identifiers,
+    ip_blacklist,
+    mirrors,
     user_books,
     users,
     volume_infos,

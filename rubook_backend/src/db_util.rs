@@ -5,22 +5,19 @@ use diesel::{prelude::*, r2d2::ConnectionManager};
 use diesel_migrations::MigrationHarness;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations};
 use r2d2::Pool;
-use rubook_lib::models::{AccessInfo, Book, BookFormat, IndustryIdentifier, VolumeInfo};
+use rubook_lib::libgen::mirrors::Mirror;
+use rubook_lib::models::{AccessInfo, Book, BookFormat, IndustryIdentifier, Ip, VolumeInfo};
 use rubook_lib::user::User;
 use std::{env, fmt};
 
 use dotenvy::dotenv;
 
-use crate::db_models::{
-    DbAccessInfo, DbAuthor, DbBook, DbIndustryIdentifier, DbUser, DbVolumeInfo, NewAccessInfo,
-    NewAuthor, NewBook, NewIndustryIdentifier, NewUser, NewVolumeInfo,
-};
+use crate::db_models::*;
 use crate::schema::*;
 
 // NOTE:(akotro) Database
 
 const LOCAL_DB: &str = "DATABASE_URL";
-const SANDBOX_DB: &str = "DATABASE_URL_SANDBOX";
 const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
 
 pub type MySqlPool = Pool<ConnectionManager<MysqlConnection>>;
@@ -153,7 +150,6 @@ pub fn create_book(conn: &mut MysqlConnection, book: &Book, user_id: &str) -> Qu
             .is_some();
 
         if !book_exists {
-            println!("Book does not exist. Inserting...");
             diesel::insert_into(books::table)
                 .values(&new_book)
                 .execute(transaction_context)?;
@@ -490,4 +486,99 @@ pub fn delete_industry_identifiers(
 ) -> QueryResult<usize> {
     diesel::delete(industry_identifiers::table.filter(industry_identifiers::book_id.eq(book_id)))
         .execute(conn)
+}
+
+// NOTE:(akotro) Mirrors
+
+pub fn create_mirrors(conn: &mut MysqlConnection, mirrors: &[Mirror]) -> QueryResult<usize> {
+    let new_mirrors: Vec<NewMirror> = mirrors
+        .iter()
+        .map(|mirror| NewMirror {
+            host_url: &mirror.host_url.as_str(),
+            search_url: mirror.search_url.as_ref().map(|url| url.as_str()),
+            search_url_fiction: mirror.search_url_fiction.as_ref().map(|url| url.as_str()),
+            download_url: mirror.download_url.as_ref().map(|url| url.as_str()),
+            download_url_fiction: mirror.download_url_fiction.as_ref().map(|url| url.as_str()),
+            download_pattern: mirror.download_pattern.as_deref(),
+            sync_url: mirror.sync_url.as_ref().map(|url| url.as_str()),
+            cover_pattern: mirror.cover_pattern.as_deref(),
+        })
+        .collect();
+
+    diesel::insert_into(mirrors::table)
+        .values(new_mirrors)
+        .execute(conn)
+}
+
+pub fn get_mirrors(conn: &mut MysqlConnection) -> QueryResult<Vec<Mirror>> {
+    let db_mirrors = mirrors::table.load::<DbMirror>(conn)?;
+
+    Ok(db_mirrors
+        .iter()
+        .map(|db_mirror| Mirror {
+            host_url: db_mirror.host_url.clone(),
+            search_url: db_mirror.search_url.clone(),
+            search_url_fiction: db_mirror.search_url_fiction.clone(),
+            download_url: db_mirror.download_url.clone(),
+            download_url_fiction: db_mirror.download_url_fiction.clone(),
+            download_pattern: db_mirror.download_pattern.clone(),
+            sync_url: db_mirror.sync_url.clone(),
+            cover_pattern: db_mirror.cover_pattern.clone(),
+        })
+        .collect())
+}
+
+pub fn get_mirror_by_id(conn: &mut MysqlConnection, mirror_id: i32) -> QueryResult<DbMirror> {
+    mirrors::table.find(mirror_id).first(conn)
+}
+
+pub fn update_mirror(conn: &mut MysqlConnection, id: i32, mirror: &Mirror) -> QueryResult<usize> {
+    let new_mirror: NewMirror = NewMirror {
+        host_url: &mirror.host_url.as_str(),
+        search_url: mirror.search_url.as_ref().map(|url| url.as_str()),
+        search_url_fiction: mirror.search_url_fiction.as_ref().map(|url| url.as_str()),
+        download_url: mirror.download_url.as_ref().map(|url| url.as_str()),
+        download_url_fiction: mirror.download_url_fiction.as_ref().map(|url| url.as_str()),
+        download_pattern: mirror.download_pattern.as_deref(),
+        sync_url: mirror.sync_url.as_ref().map(|url| url.as_str()),
+        cover_pattern: mirror.cover_pattern.as_deref(),
+    };
+
+    diesel::update(mirrors::table.find(id))
+        .set(new_mirror)
+        .execute(conn)
+}
+
+pub fn delete_mirror(conn: &mut MysqlConnection, id: i32) -> QueryResult<usize> {
+    diesel::delete(mirrors::table.find(id)).execute(conn)
+}
+
+// NOTE:(akotro) Mirrors
+
+pub fn create_ip_blacklist(conn: &mut MysqlConnection, ips: &[Ip]) -> QueryResult<usize> {
+    let new_ips: Vec<NewIp> = ips
+        .iter()
+        .map(|ip| NewIp {
+            ip_address: ip.ip_address.as_str(),
+        })
+        .collect();
+
+    diesel::insert_into(ip_blacklist::table)
+        .values(new_ips)
+        .execute(conn)
+}
+
+pub fn get_ip_blacklist(conn: &mut MysqlConnection) -> QueryResult<Vec<Ip>> {
+    let db_ips = ip_blacklist::table.load::<DbIp>(conn)?;
+
+    Ok(db_ips
+        .iter()
+        .map(|db_ip| Ip {
+            ip_address: db_ip.ip_address.clone(),
+        })
+        .collect())
+}
+
+pub fn delete_ip(conn: &mut MysqlConnection, ip: &str) -> QueryResult<usize> {
+    diesel::delete(ip_blacklist::table.filter(ip_blacklist::ip_address.eq(ip))).execute(conn)
 }

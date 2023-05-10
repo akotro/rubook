@@ -2,9 +2,8 @@ use std::sync::Arc;
 
 use reqwest::Client;
 use rubook_lib::{
-    backend_util::delete_user,
-    libgen_util::parse_mirrors,
-    user::{login, register, User},
+    backend_util::{delete_user, get_mirrors},
+    user::{login, register, User}, libgen::mirrors::MirrorList,
 };
 
 #[derive(Debug)]
@@ -114,8 +113,9 @@ pub async fn main_menu(
     user: &mut User,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let mirrors = parse_mirrors();
-        let mut mirror_handles = std::sync::Arc::new(mirrors)
+        let mirrors = get_mirrors(&client, &user.token).await?;
+        let mirror_list = MirrorList::new(mirrors);
+        let mut mirror_handles = std::sync::Arc::new(mirror_list)
             .spawn_get_working_mirrors_tasks(&client)
             .await;
 

@@ -28,6 +28,7 @@ dependencies = [
  "actix-codec",
  "actix-rt",
  "actix-service",
+ "actix-tls",
  "actix-utils",
  "ahash 0.8.3",
  "base64 0.21.0",
@@ -56,6 +57,18 @@ dependencies = [
  "tokio-util",
  "tracing",
  "zstd",
+]
+
+[[package]]
+name = "actix-ip-filter"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74a128eb37155b02cf691d55ad309b2bcae0902acfbb6e261f9e0d4ff4198602"
+dependencies = [
+ "actix-service",
+ "actix-web",
+ "futures-util",
+ "glob",
 ]
 
 [[package]]
@@ -121,6 +134,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "actix-tls"
+version = "3.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9fde0cf292f7cdc7f070803cb9a0d45c018441321a78b1042ffbbb81ec333297"
+dependencies = [
+ "actix-codec",
+ "actix-rt",
+ "actix-service",
+ "actix-utils",
+ "futures-core",
+ "log",
+ "openssl",
+ "pin-project-lite",
+ "tokio-openssl",
+ "tokio-util",
+]
+
+[[package]]
 name = "actix-utils"
 version = "3.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -143,6 +174,7 @@ dependencies = [
  "actix-rt",
  "actix-server",
  "actix-service",
+ "actix-tls",
  "actix-utils",
  "actix-web-codegen",
  "ahash 0.7.6",
@@ -769,6 +801,12 @@ dependencies = [
  "libc",
  "wasi 0.11.0+wasi-snapshot-preview1",
 ]
+
+[[package]]
+name = "glob"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
 
 [[package]]
 name = "h2"
@@ -1529,6 +1567,7 @@ dependencies = [
 name = "rubook"
 version = "0.1.0"
 dependencies = [
+ "dotenvy",
  "inquire",
  "reqwest",
  "rubook_lib",
@@ -1540,6 +1579,7 @@ dependencies = [
 name = "rubook_backend"
 version = "0.1.0"
 dependencies = [
+ "actix-ip-filter",
  "actix-web",
  "argon2",
  "chrono",
@@ -1548,6 +1588,7 @@ dependencies = [
  "dotenvy",
  "env_logger",
  "jsonwebtoken",
+ "openssl",
  "r2d2",
  "rubook_lib",
  "serde",
@@ -1943,6 +1984,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-openssl"
+version = "0.6.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c08f9ffb7809f1b20c1b398d92acf4cc719874b3b2b2d9ea2f09b4a80350878a"
+dependencies = [
+ "futures-util",
+ "openssl",
+ "openssl-sys",
  "tokio",
 ]
 

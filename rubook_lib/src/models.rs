@@ -146,6 +146,11 @@ pub struct Response {
     pub error: Option<Error>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Ip {
+    pub ip_address: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ApiResponse<T> {
     pub success: bool,

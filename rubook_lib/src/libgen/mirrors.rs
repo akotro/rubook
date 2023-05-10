@@ -1,7 +1,8 @@
 use core::fmt;
 use std::sync::Arc;
 
-use reqwest::{Client, StatusCode, Url};
+use reqwest::{Client, StatusCode};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::task::JoinHandle;
 
@@ -10,15 +11,15 @@ pub enum MirrorType {
     Download,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Mirror {
-    pub host_url: Url,
-    pub search_url: Option<Url>,
-    pub search_url_fiction: Option<Url>,
-    pub download_url: Option<Url>,
-    pub download_url_fiction: Option<Url>,
+    pub host_url: String,
+    pub search_url: Option<String>,
+    pub search_url_fiction: Option<String>,
+    pub download_url: Option<String>,
+    pub download_url_fiction: Option<String>,
     pub download_pattern: Option<String>,
-    pub sync_url: Option<Url>,
+    pub sync_url: Option<String>,
     pub cover_pattern: Option<String>,
 }
 
@@ -51,6 +52,26 @@ pub struct MirrorList {
 }
 
 impl MirrorList {
+    pub fn new(mirrors: Vec<Mirror>) -> MirrorList {
+        let mut search_mirrors = Vec::new();
+        let mut download_mirrors = Vec::new();
+
+        for mirror in mirrors {
+            if mirror.host_url != "" {
+                if let Some(_) = mirror.search_url {
+                    search_mirrors.push(mirror);
+                } else if let Some(_) = mirror.download_url {
+                    download_mirrors.push(mirror);
+                }
+            }
+        }
+
+        MirrorList {
+            search_mirrors,
+            download_mirrors,
+        }
+    }
+
     pub fn parse_mirrors(json: &str) -> MirrorList {
         let mut search_mirrors: Vec<Mirror> = Vec::new();
         let mut download_mirrors: Vec<Mirror> = Vec::new();
@@ -58,30 +79,18 @@ impl MirrorList {
         let map: Value = serde_json::from_str(json).unwrap();
 
         map.as_object().unwrap().iter().for_each(|(_k, v)| {
-            let search_url = v
-                .get("SearchUrl")
-                .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
-            let search_url_fiction = v
-                .get("FictionSearchUrl")
-                .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
-            let host_url = v
-                .get("Host")
-                .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
+            let search_url = v.get("SearchUrl").map(|v| v.to_string());
+            let search_url_fiction = v.get("FictionSearchUrl").map(|v| v.to_string());
+            let host_url = v.get("Host").map(|v| v.to_string());
             let download_url = v
                 .get("NonFictionDownloadUrl")
-                .map(|v| Url::parse(&v.as_str().unwrap().replace("{md5}", "")).unwrap());
+                .map(|v| v.to_string().replace("{md5}", ""));
             let download_url_fiction = v
                 .get("FictionDownloadUrl")
-                .map(|v| Url::parse(&v.as_str().unwrap().replace("{md5}", "")).unwrap());
-            let download_pattern = v
-                .get("NonFictionDownloadUrl")
-                .map(|v| v.as_str().unwrap().to_owned());
-            let sync_url = v
-                .get("NonFictionSynchronizationUrl")
-                .map(|v| Url::parse(v.as_str().unwrap()).unwrap());
-            let cover_pattern = v
-                .get("NonFictionCoverUrl")
-                .map(|v| String::from(v.as_str().unwrap()));
+                .map(|v| v.to_string().replace("{md5}", ""));
+            let download_pattern = v.get("NonFictionDownloadUrl").map(|v| v.to_string());
+            let sync_url = v.get("NonFictionSynchronizationUrl").map(|v| v.to_string());
+            let cover_pattern = v.get("NonFictionCoverUrl").map(|v| v.to_string());
             if let Some(..) = host_url {
                 if search_url.is_some() {
                     search_mirrors.push(Mirror {

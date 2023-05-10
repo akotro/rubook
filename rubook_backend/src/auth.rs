@@ -81,3 +81,22 @@ pub fn validate_token(req: &HttpRequest) -> Result<(), HttpResponse> {
 
     Ok(())
 }
+
+pub fn validate_ip(req: &HttpRequest) -> Result<(), HttpResponse> {
+    let connection_info = req.connection_info();
+    let ip = connection_info
+        .realip_remote_addr()
+        .ok_or_else(|| HttpResponse::Unauthorized().finish())?;
+
+    let ip_blacklist = req
+        .app_data::<web::Data<Vec<String>>>()
+        .expect("Missing app data: ip blacklist")
+        .as_ref();
+
+    if ip_blacklist.contains(&ip.to_string()) {
+        println!("Blocked ip: {ip}");
+        return Err(HttpResponse::Unauthorized().finish());
+    }
+
+    Ok(())
+}

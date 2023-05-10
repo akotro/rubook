@@ -4,6 +4,7 @@ use reqwest::Client;
 use serde_json::json;
 
 use crate::{
+    libgen::mirrors::Mirror,
     models::{ApiResponse, Book},
     user::User,
 };
@@ -15,7 +16,8 @@ use crate::{
 //     };
 // }
 
-pub static BACKEND_URL: &str = "http://64.226.108.119:8080/rubook";
+// pub static BACKEND_URL: &str = "http://64.226.108.119:9595/rubook";
+pub static BACKEND_URL: &str = "https://localhost:9595/rubook";
 
 pub async fn register_user(
     client: &Arc<Client>,
@@ -105,4 +107,17 @@ pub async fn delete_book(
         .await?;
     let response_body = response.text().await?;
     ApiResponse::<usize>::from_response_body(&response_body)
+}
+
+pub async fn get_mirrors(
+    client: &Arc<Client>,
+    token: &str,
+) -> Result<Vec<Mirror>, Box<dyn std::error::Error>> {
+    let response = client
+        .get(format!("{}/mirrors", BACKEND_URL))
+        .bearer_auth(token)
+        .send()
+        .await?;
+    let response_body = response.text().await?;
+    ApiResponse::<Vec<Mirror>>::from_response_body(&response_body)
 }

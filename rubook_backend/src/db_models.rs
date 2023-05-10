@@ -94,3 +94,41 @@ pub struct NewIndustryIdentifier<'a> {
     pub isbn_type: &'a str,
     pub identifier: &'a str,
 }
+
+#[derive(Queryable, Serialize, Deserialize, Debug)]
+pub struct DbMirror {
+    pub id: i32,
+    pub host_url: String,
+    pub search_url: Option<String>,
+    pub search_url_fiction: Option<String>,
+    pub download_url: Option<String>,
+    pub download_url_fiction: Option<String>,
+    pub download_pattern: Option<String>,
+    pub sync_url: Option<String>,
+    pub cover_pattern: Option<String>,
+}
+
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
+#[diesel(table_name = mirrors)]
+pub struct NewMirror<'a> {
+    pub host_url: &'a str,
+    pub search_url: Option<&'a str>,
+    pub search_url_fiction: Option<&'a str>,
+    pub download_url: Option<&'a str>,
+    pub download_url_fiction: Option<&'a str>,
+    pub download_pattern: Option<&'a str>,
+    pub sync_url: Option<&'a str>,
+    pub cover_pattern: Option<&'a str>,
+}
+
+#[derive(Queryable, Serialize, Deserialize, Debug)]
+pub struct DbIp {
+    pub id: i32,
+    pub ip_address: String,
+}
+
+#[derive(AsChangeset, Insertable, Serialize, Deserialize)]
+#[diesel(table_name = ip_blacklist)]
+pub struct NewIp<'a> {
+    pub ip_address: &'a str,
+}
