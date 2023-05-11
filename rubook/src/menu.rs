@@ -3,7 +3,7 @@ use std::sync::Arc;
 use reqwest::Client;
 use rubook_lib::{
     backend_util::{delete_user, get_mirrors},
-    user::{login, register, User}, libgen::mirrors::MirrorList,
+    user::{login, register, User}, libgen::mirrors::{MirrorList, Mirror},
 };
 
 #[derive(Debug)]
@@ -63,7 +63,8 @@ fn confirm(message: &str) -> bool {
 pub async fn main_loop(client: Arc<Client>) -> Result<(), Box<dyn std::error::Error>> {
     loop {
         if let Some(mut user) = login_menu(&client).await {
-            main_menu(client, &mut user).await?;
+            let mirrors = get_mirrors(&client, &user.token).await?;
+            main_menu(client, &mut user, mirrors).await?;
             break;
         }
 
@@ -111,10 +112,10 @@ pub async fn login_menu(client: &Arc<Client>) -> Option<User> {
 pub async fn main_menu(
     client: Arc<Client>,
     user: &mut User,
+    mirrors: Vec<Mirror>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     loop {
-        let mirrors = get_mirrors(&client, &user.token).await?;
-        let mirror_list = MirrorList::new(mirrors);
+        let mirror_list = MirrorList::new(mirrors.clone());
         let mut mirror_handles = std::sync::Arc::new(mirror_list)
             .spawn_get_working_mirrors_tasks(&client)
             .await;

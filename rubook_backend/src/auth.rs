@@ -1,12 +1,17 @@
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    sync::{Arc, Mutex},
+    time::{SystemTime, UNIX_EPOCH, Duration},
+};
 
-use actix_web::{web, HttpRequest, HttpResponse};
+use actix_web::{web, HttpRequest, HttpResponse, rt::time::sleep};
 use argon2::{
     password_hash::{rand_core::OsRng, SaltString},
     Argon2, PasswordHash, PasswordHasher, PasswordVerifier,
 };
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use rubook_lib::user::UserClaims;
+
+use crate::db_util;
 
 pub fn generate_password_hash(password: String) -> Result<String, argon2::password_hash::Error> {
     let argon2 = Argon2::default();
@@ -82,6 +87,42 @@ pub fn validate_token(req: &HttpRequest) -> Result<(), HttpResponse> {
     Ok(())
 }
 
+pub async fn get_ip_blacklist(pool: db_util::MySqlPool) -> Result<Vec<String>, diesel::result::Error> {
+    let result = web::block(move || {
+        let mut conn = db_util::get_connection(&pool);
+        db_util::get_ip_blacklist(&mut conn)
+    })
+    .await
+    .map_err(|_| diesel::result::Error::RollbackTransaction);
+
+    match result {
+        Ok(ip_blacklist_result) => match ip_blacklist_result {
+            Ok(ip_blacklist) => {
+                // map Vec<Ip> to Vec<&str>
+                let ip_addresses: Vec<String> =
+                    ip_blacklist.into_iter().map(|ip| ip.ip_address).collect();
+                Ok(ip_addresses)
+            }
+            Err(error) => Err(error),
+        },
+        Err(err) => Err(err),
+    }
+}
+
+type IpBlacklist = Arc<Mutex<Vec<String>>>;
+
+pub async fn update_blacklist(db_pool: db_util::MySqlPool, blacklist: IpBlacklist) {
+    loop {
+        println!("Updating IP blacklist...");
+
+        let updated_blacklist = get_ip_blacklist(db_pool.clone()).await.unwrap_or_default();
+        *blacklist.lock().unwrap() = updated_blacklist;
+
+        // NOTE:(akotro) Update ip blacklist every 15 minutes
+        sleep(Duration::from_secs(900)).await;
+    }
+}
+
 pub fn validate_ip(req: &HttpRequest) -> Result<(), HttpResponse> {
     let connection_info = req.connection_info();
     let ip = connection_info
@@ -89,9 +130,10 @@ pub fn validate_ip(req: &HttpRequest) -> Result<(), HttpResponse> {
         .ok_or_else(|| HttpResponse::Unauthorized().finish())?;
 
     let ip_blacklist = req
-        .app_data::<web::Data<Vec<String>>>()
+        .app_data::<web::Data<IpBlacklist>>()
         .expect("Missing app data: ip blacklist")
         .as_ref();
+    let ip_blacklist = ip_blacklist.lock().unwrap();
 
     if ip_blacklist.contains(&ip.to_string()) {
         println!("Blocked ip: {ip}");

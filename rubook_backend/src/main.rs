@@ -4,7 +4,10 @@ mod db_util;
 mod routes;
 mod schema;
 
-use std::env;
+use std::{
+    env,
+    sync::{Arc, Mutex},
+};
 
 use actix_web::{
     middleware::Logger,
@@ -32,28 +35,6 @@ fn configure_ssl() -> SslAcceptorBuilder {
     builder
 }
 
-async fn get_ip_blacklist(pool: db_util::MySqlPool) -> Result<Vec<String>, diesel::result::Error> {
-    let result = web::block(move || {
-        let mut conn = db_util::get_connection(&pool);
-        db_util::get_ip_blacklist(&mut conn)
-    })
-    .await
-    .map_err(|_| diesel::result::Error::RollbackTransaction);
-
-    match result {
-        Ok(ip_blacklist_result) => match ip_blacklist_result {
-            Ok(ip_blacklist) => {
-                // map Vec<Ip> to Vec<&str>
-                let ip_addresses: Vec<String> =
-                    ip_blacklist.into_iter().map(|ip| ip.ip_address).collect();
-                Ok(ip_addresses)
-            }
-            Err(error) => Err(error),
-        },
-        Err(err) => Err(err),
-    }
-}
-
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
@@ -61,7 +42,9 @@ async fn main() -> std::io::Result<()> {
 
     let db_pool = db_util::init_database();
     let ssl_builder = configure_ssl();
-    let ip_blacklist = get_ip_blacklist(db_pool.clone()).await.unwrap_or_default();
+
+    let ip_blacklist = Arc::new(Mutex::new(Vec::<String>::new()));
+    actix_web::rt::spawn(auth::update_blacklist(db_pool.clone(), ip_blacklist.clone()));
 
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
