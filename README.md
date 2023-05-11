@@ -12,7 +12,12 @@ This repository contains both the front-end CLI and a backend web API built with
 
 ## Installation
 
-### Using the Google Books API
+1. Go to the [**Releases**](https://github.com/akotro/rubook/releases) page of the repository.
+2. Find the latest release and download the `.zip` file for your corresponding platform.
+3. Unzip the downloaded file to a location of your choice.
+4. Follow the instructions below to modify the .env.sample file with your Google API key.
+
+### Getting your Google API Key
 
 This project uses the Google Books API to search for and retrieve information about books. In order to use this API, you will need to obtain a Google API key and add it to a `.env` file in the root of the project.
 
@@ -39,9 +44,7 @@ You can also look at or modify the `.env.sample` file provided in the root of th
 
 ## Usage
 
-To use Rubook, simply run the `rubook` command followed by the desired subcommand. For example, to search for a book by title, you can run the following command:
-
-...
+To use Rubook, simply run the `rubook` command.
 
 ## Contributing
 
