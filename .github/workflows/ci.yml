@@ -155,7 +155,7 @@ jobs:
         run: |
           #strip target/${{ matrix.target }}/release/testfile
           cd target/${{ matrix.target }}/release
-          7z a ../../../rubook-${{ matrix.target }}.7z rubook ../../../LICENSE ../../../README.md ../../../.env.sample
+          7z a ../../../rubook-${{ matrix.target }}.7z rubook.exe ../../../LICENSE ../../../README.md ../../../.env.sample
           cd -
       - name: Publish
         uses: softprops/action-gh-release@v1
