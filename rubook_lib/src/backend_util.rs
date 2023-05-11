@@ -16,8 +16,8 @@ use crate::{
 //     };
 // }
 
-// pub static BACKEND_URL: &str = "http://64.226.108.119:9595/rubook";
-pub static BACKEND_URL: &str = "https://localhost:9595/rubook";
+pub static BACKEND_URL: &str = "https://64.226.108.119:9595/rubook";
+// pub static BACKEND_URL: &str = "https://localhost:9595/rubook";
 
 pub async fn register_user(
     client: &Arc<Client>,

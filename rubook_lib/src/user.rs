@@ -53,7 +53,7 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
             println!("User '{}' created", db_user.username);
             Some(User {
                 id: db_user.id,
-                token: String::new(),
+                token: db_user.token,
                 username: db_user.username,
                 password: db_user.password,
                 collection: vec![],

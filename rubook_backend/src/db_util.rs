@@ -86,7 +86,9 @@ pub fn create_user(conn: &mut MysqlConnection, new_user: &NewUser) -> QueryResul
         .values(new_user)
         .execute(conn)?;
 
-    users::table.order(users::id.desc()).first(conn)
+    users::table
+        .filter(users::username.eq(&new_user.username))
+        .first::<DbUser>(conn)
 }
 
 pub fn get_user_by_id(conn: &mut MysqlConnection, user_id: &str) -> QueryResult<User> {

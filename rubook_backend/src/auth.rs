@@ -98,7 +98,6 @@ pub async fn get_ip_blacklist(pool: db_util::MySqlPool) -> Result<Vec<String>, d
     match result {
         Ok(ip_blacklist_result) => match ip_blacklist_result {
             Ok(ip_blacklist) => {
-                // map Vec<Ip> to Vec<&str>
                 let ip_addresses: Vec<String> =
                     ip_blacklist.into_iter().map(|ip| ip.ip_address).collect();
                 Ok(ip_addresses)
