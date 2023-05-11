@@ -145,7 +145,7 @@ jobs:
       #   run: choco install openssl
 
       - name: Build target
-        run: cargo build --release --target ${{ matrix.target }}
+        run: cargo build --bin rubook --release --target ${{ matrix.target }}
         env:
           RUSTFLAGS: -C target-feature=+crt-static
           CARGO_TARGET_x86_64_PC_WINDOWS_MSVC_RUSTFLAGS: -C target-feature=+crt-static
