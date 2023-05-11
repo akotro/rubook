@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 rubook_lib = { path = "../rubook_lib" }
 actix-web = { version = "4", features = ["openssl"] }
-actix-ip-filter = "0.3.1"
+actix-governor = "0.4.0"
 openssl = { version = "0.10", features = ["v110"] }
 jsonwebtoken = "8.3.0"
 argon2 = "0.5.0"

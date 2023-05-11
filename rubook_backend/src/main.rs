@@ -9,6 +9,10 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use actix_governor::{
+    governor::{clock::QuantaInstant, middleware::NoOpMiddleware},
+    Governor, GovernorConfig, GovernorConfigBuilder, PeerIpKeyExtractor,
+};
 use actix_web::{
     middleware::Logger,
     web::{self, Data},
@@ -35,16 +39,31 @@ fn configure_ssl() -> SslAcceptorBuilder {
     builder
 }
 
+fn configure_governor() -> GovernorConfig<PeerIpKeyExtractor, NoOpMiddleware<QuantaInstant>> {
+    GovernorConfigBuilder::default()
+        .per_millisecond(300)
+        .burst_size(2)
+        .per_second(5)
+        .burst_size(10)
+        .finish()
+        .unwrap()
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     dotenv().ok();
     let secret_key = Data::new(env::var(JWT_SECRET).expect("JWT_SECRET must be set"));
 
     let db_pool = db_util::init_database();
+
     let ssl_builder = configure_ssl();
+    let governor_conf = configure_governor();
 
     let ip_blacklist = Arc::new(Mutex::new(Vec::<String>::new()));
-    actix_web::rt::spawn(auth::update_blacklist(db_pool.clone(), ip_blacklist.clone()));
+    actix_web::rt::spawn(auth::update_blacklist(
+        db_pool.clone(),
+        ip_blacklist.clone(),
+    ));
 
     env_logger::init_from_env(Env::default().default_filter_or("info"));
 
@@ -53,6 +72,7 @@ async fn main() -> std::io::Result<()> {
             .wrap(Logger::new(
                 "%a \"%r\" %s %b %D \"%{Referer}i\" \"%{User-Agent}i\" %U %{r}a",
             ))
+            .wrap(Governor::new(&governor_conf))
             .service(
                 web::scope("rubook")
                     .app_data(Data::new(db_pool.clone()))
