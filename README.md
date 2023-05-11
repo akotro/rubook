@@ -17,7 +17,7 @@ This repository contains both the front-end CLI and a backend web API built with
 3. Unzip the downloaded file to a location of your choice.
 4. Follow the instructions below to modify the .env.sample file with your Google API key.
 
-### Using the Google Books API
+### Getting your Google API Key
 
 This project uses the Google Books API to search for and retrieve information about books. In order to use this API, you will need to obtain a Google API key and add it to a `.env` file in the root of the project.
 
