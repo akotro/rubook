@@ -1,6 +1,6 @@
 # Rubook
 
-`rubook` is a command line application written in [Rust](https://www.rust-lang.org/) that allows users to search for books, manage their collection, and download them as ebooks through Libgen.
+`rubook` is a command line application written in [Rust](https://www.rust-lang.org/) that allows users to search for books, manage their collection, and download them as ebooks.
 This repository contains both the front-end CLI and a backend web API built with [Actix Web](https://actix.rs/).
 
 
