@@ -59,8 +59,8 @@ pub async fn register(client: &Arc<Client>) -> Option<User> {
                 collection: vec![],
             })
         }
-        Err(err) => {
-            println!("Failed to create user. {}", err);
+        Err(_) => {
+            println!("Failed to create user");
             None
         }
     }

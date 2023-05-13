@@ -50,7 +50,7 @@ pub async fn download_book(
             Ok(b) => Ok(b),
             Err(_e) => Err("Download error"),
         },
-        "http://libgen.lol/" => match download_book_from_lol(&content, mirror, client).await {
+        "http://library.lol/" => match download_book_from_lol(&content, mirror, client).await {
             Ok(b) => Ok(b),
             Err(_e) => Err("Download error"),
         },
@@ -93,7 +93,7 @@ pub async fn download_book_fiction(
             Ok(b) => Ok(b),
             Err(_e) => Err("Download error"),
         },
-        "http://libgen.lol/" => match download_book_from_lol(&content, mirror, client).await {
+        "http://library.lol/" => match download_book_from_lol(&content, mirror, client).await {
             Ok(b) => Ok(b),
             Err(_e) => Err("Download error"),
         },

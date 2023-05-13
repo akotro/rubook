@@ -6,7 +6,9 @@ use rubook_lib::{
 use uuid::Uuid;
 
 use crate::{
-    auth::{generate_password_hash, generate_token, validate_password, validate_token, validate_ip},
+    auth::{
+        generate_password_hash, generate_token, validate_ip, validate_password, validate_token,
+    },
     db_models::NewUser,
     db_util::{
         create_book, create_user, delete_book, delete_user, get_book_by_id, get_books_by_user_id,
@@ -319,32 +321,6 @@ async fn get_book_by_id_route(
         }
     }
 }
-
-// #[put("/users/{user_id}/books/{book_id}")]
-// async fn update_book_route(
-//     pool: web::Data<MySqlPool>,
-//     req: HttpRequest,
-//     user_id: web::Path<i32>,
-//     book_id: web::Path<String>,
-//     book: web::Json<Book>,
-// ) -> HttpResponse {
-//     if let Err(err) = validate_token(&req) {
-//         return err;
-//     }
-
-//     let result = web::block(move || {
-//         let mut conn = get_connection(&pool);
-//         update_book(&mut conn, &book_id, &book.0, *user_id)
-//     })
-//     .await;
-//     match result {
-//         Ok(users_result) => match users_result {
-//             Ok(rows) => HttpResponse::Ok().json(rows),
-//             Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
-//         },
-//         Err(error) => HttpResponse::InternalServerError().body(error.to_string()),
-//     }
-// }
 
 #[delete("/users/{user_id}/books/{book_id}")]
 async fn delete_book_route(

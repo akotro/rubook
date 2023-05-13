@@ -30,6 +30,7 @@ pub enum MainMenuOption {
     DeleteBooks,
     DownloadBook,
     DeleteAccount,
+    ReturnToLogin,
     Exit,
 }
 
@@ -41,6 +42,7 @@ impl std::fmt::Display for MainMenuOption {
             MainMenuOption::DeleteBooks => write!(f, "Delete books from your collection"),
             MainMenuOption::DownloadBook => write!(f, "Download a book from your collection"),
             MainMenuOption::DeleteAccount => write!(f, "Delete your account"),
+            MainMenuOption::ReturnToLogin => write!(f, "Return to login menu"),
             MainMenuOption::Exit => write!(f, "Exit"),
         }
     }
@@ -61,14 +63,19 @@ fn confirm(message: &str) -> bool {
 }
 
 pub async fn main_loop(client: Arc<Client>) -> Result<(), Box<dyn std::error::Error>> {
+    let mut exit_program = false;
+
     loop {
-        if let Some(mut user) = login_menu(&client).await {
-            let mirrors = get_mirrors(&client, &user.token).await?;
-            main_menu(client, &mut user, mirrors).await?;
+        if exit_program {
             break;
         }
 
-        if confirm("Do you really want to exit?") {
+        if let Some(mut user) = login_menu(&client).await {
+            let mirrors = get_mirrors(&client, &user.token).await?;
+            if main_menu(client.clone(), &mut user, mirrors).await? {
+                exit_program = true;
+            }
+        } else if confirm("Do you really want to exit?") {
             println!("Later...");
             break;
         }
@@ -90,17 +97,21 @@ pub async fn login_menu(client: &Arc<Client>) -> Option<User> {
             Ok(selection) => match selection {
                 LoginMenuOption::Exit => break None,
                 LoginMenuOption::Login => {
-                    if let Some(user) = login(client).await {
-                        break Some(user);
-                    } else if !confirm("Try again?") {
-                        break None;
+                    loop {
+                        if let Some(user) = login(client).await {
+                            return Some(user);
+                        } else if !confirm("Try again?") {
+                            break None::<User>;
+                        }
                     }
                 }
                 LoginMenuOption::Register => {
-                    if let Some(user) = register(client).await {
-                        break Some(user);
-                    } else if !confirm("Try again?") {
-                        break None;
+                    loop {
+                        if let Some(user) = register(client).await {
+                            return Some(user);
+                        } else if !confirm("Try again?") {
+                            break None::<User>;
+                        }
                     }
                 }
             },
@@ -113,7 +124,7 @@ pub async fn main_menu(
     client: Arc<Client>,
     user: &mut User,
     mirrors: Vec<Mirror>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<bool, Box<dyn std::error::Error>> {
     loop {
         let mirror_list = MirrorList::new(mirrors.clone());
         let mut mirror_handles = std::sync::Arc::new(mirror_list)
@@ -126,6 +137,7 @@ pub async fn main_menu(
             MainMenuOption::DownloadBook,
             MainMenuOption::DeleteBooks,
             MainMenuOption::DeleteAccount,
+            MainMenuOption::ReturnToLogin,
             MainMenuOption::Exit,
         ];
         let selection = inquire::Select::new(
@@ -139,7 +151,7 @@ pub async fn main_menu(
                 MainMenuOption::Exit => {
                     if confirm("Do you really want to exit?") {
                         println!("Later...");
-                        break;
+                        return Ok(true);
                     }
                 }
                 MainMenuOption::ViewCollection => println!("{}", user),
@@ -171,10 +183,11 @@ pub async fn main_menu(
                         break;
                     }
                 }
+                MainMenuOption::ReturnToLogin => return Ok(false)
             },
             Err(e) => eprintln!("Error: {}", e),
         }
     }
 
-    Ok(())
+    Ok(true)
 }

@@ -27,19 +27,8 @@ impl std::fmt::Display for SearchType {
     }
 }
 
-pub async fn search_non_fiction(
-    book: &Book,
-    mirror: &Mirror,
-    client: &Client,
-) -> Result<Vec<LibgenBook>, &'static str> {
-    let mut search_url = Url::parse(
-        mirror
-            .search_url
-            .as_ref()
-            .expect("Mirror search url is invalid")
-            .as_str(),
-    )
-    .unwrap();
+pub fn create_non_fiction_search_query(search_url: String, book: &Book) -> String {
+    let mut search_url = Url::parse(&search_url).unwrap();
     let mut search_query = search_url.query_pairs_mut();
 
     search_query
@@ -61,33 +50,11 @@ pub async fn search_non_fiction(
         .append_pair("open", "0")
         .append_pair("view", "simple")
         .append_pair("phrase", "1");
-    let search_url = search_query.finish();
-
-    let content = match get_content(search_url, client).await {
-        Ok(b) => b,
-        Err(e) => {
-            println!("Error: {:?}", e);
-            return Err("Failed to get content from page");
-        }
-    };
-
-    let book_hashes = parse_hashes(content);
-    Ok(get_books(&book_hashes, &mirror, client).await)
+    search_query.finish().to_string()
 }
 
-pub async fn search_fiction(
-    book: &Book,
-    mirror: &Mirror,
-    client: &Client,
-) -> Result<String, &'static str> {
-    let mut search_url = Url::parse(
-        mirror
-            .search_url_fiction
-            .as_ref()
-            .expect("Mirror search url fiction is invalid")
-            .as_str(),
-    )
-    .unwrap();
+pub fn create_fiction_search_query(search_url: String, book: &Book) -> String {
+    let mut search_url = Url::parse(&search_url).unwrap();
     let mut search_query = search_url.query_pairs_mut();
 
     search_query
@@ -107,7 +74,53 @@ pub async fn search_fiction(
         .append_pair("criteria", "")
         .append_pair("language", "English")
         .append_pair("format", "");
-    let search_url = search_query.finish();
+    search_query.finish().to_string()
+}
+
+pub async fn search_non_fiction(
+    book: &Book,
+    mirror: &Mirror,
+    client: &Client,
+) -> Result<Vec<LibgenBook>, &'static str> {
+    let search_url = mirror.search_url.clone().unwrap();
+    let search_url = create_non_fiction_search_query(search_url, book);
+
+    let content = match get_content(search_url, client).await {
+        Ok(b) => b,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return Err("Failed to get content from page");
+        }
+    };
+
+    let book_hashes = parse_hashes(content);
+    Ok(get_books(&book_hashes, &mirror, client).await)
+}
+
+pub async fn search_non_fiction_with_query(
+    search_query: String,
+    mirror: &Mirror,
+    client: &Client,
+) -> Result<Vec<LibgenBook>, &'static str> {
+    let content = match get_content(search_query, client).await {
+        Ok(b) => b,
+        Err(e) => {
+            println!("Error: {:?}", e);
+            return Err("Failed to get content from page");
+        }
+    };
+
+    let book_hashes = parse_hashes(content);
+    Ok(get_books(&book_hashes, &mirror, client).await)
+}
+
+pub async fn search_fiction(
+    book: &Book,
+    mirror: &Mirror,
+    client: &Client,
+) -> Result<String, &'static str> {
+    let search_url = mirror.search_url_fiction.clone().unwrap();
+    let search_url = create_fiction_search_query(search_url, book);
 
     let content = match get_content(search_url, client).await {
         Ok(b) => b,
@@ -124,9 +137,9 @@ pub async fn search_fiction(
     }
 }
 
-async fn get_content(url: &Url, client: &Client) -> Result<Bytes, reqwest::Error> {
+async fn get_content(url: String, client: &Client) -> Result<Bytes, reqwest::Error> {
     println!("Getting content from: {}", url.as_str());
-    client.get(url.as_str()).send().await?.bytes().await
+    client.get(url).send().await?.bytes().await
 }
 
 fn parse_hashes(content: Bytes) -> Vec<String> {
@@ -153,14 +166,14 @@ async fn get_books(hashes: &[String], mirror: &Mirror, client: &Client) -> Vec<L
     let cover_url = String::from(mirror.cover_pattern.as_ref().unwrap());
 
     for hash in hashes.iter() {
-        println!("hash: {}", hash);
+        // println!("hash: {}", hash);
         let mut search_url =
             Url::parse(mirror.sync_url.as_ref().expect("Expected an Url").as_str()).unwrap();
         search_url
             .query_pairs_mut()
             .append_pair("ids", hash)
             .append_pair("fields", &JSON_QUERY);
-        let content = match get_content(&search_url, client).await {
+        let content = match get_content(search_url.to_string(), client).await {
             Ok(v) => v,
             Err(_) => continue,
         };
