@@ -61,8 +61,6 @@ pub async fn libgen_book_download(
 
             let download_response =
                 download_book(&client, &download_mirror, &selected_book).await?;
-
-            // write_response_to_file(download_response, &selected_book)
             write_response_to_file(download_response)
                 .await
                 .expect("Failed to save file");
@@ -112,7 +110,6 @@ fn start_loading_spinner() -> Sender<()> {
 
 async fn write_response_to_file(
     mut response: Response,
-    // libgen_book: &LibgenBook,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let total_size = response.content_length().unwrap_or(0);
     let mut downloaded: u64 = 0;
@@ -127,10 +124,6 @@ async fn write_response_to_file(
             file_path = filename;
         }
     }
-    // let file_path = format!(
-    //     "{} - {}.{}",
-    //     libgen_book.title, libgen_book.author, libgen_book.extension
-    // );
     let mut file = File::create(file_path)?;
 
     let tx = start_loading_spinner();

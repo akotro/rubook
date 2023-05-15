@@ -102,12 +102,23 @@ impl User {
         let select_items = books.values().map(|book| book).collect::<Vec<_>>();
         let selected_books =
             MultiSelect::new("Select books to add to your collection:", select_items).prompt()?;
+
+        let mut create_book_futures = Vec::new();
         for book in selected_books {
             if let Some(book) = books.get(&book.id) {
                 // println!("You selected: {}: {}", &book.id, book.volume_info);
                 self.collection.push(book.clone());
-                backend_util::create_book(client, self.token.as_str(), &book, &self.id).await?;
+                create_book_futures.push(backend_util::create_book(
+                    client,
+                    self.token.as_str(),
+                    &book,
+                    &self.id,
+                ))
             }
+        }
+        let create_book_results = futures::future::join_all(create_book_futures).await;
+        for result in create_book_results {
+            result?;
         }
 
         Ok(())
@@ -126,8 +137,21 @@ impl User {
 
             self.collection
                 .retain(|book| !books_to_delete.contains(book));
-            for book in books_to_delete {
-                backend_util::delete_book(client, self.token.as_str(), &self.id, book.id).await?;
+
+            let delete_book_futures = books_to_delete
+                .iter()
+                .map(|book| {
+                    backend_util::delete_book(
+                        client,
+                        self.token.as_str(),
+                        &self.id,
+                        book.id.clone(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            let delete_book_results = futures::future::join_all(delete_book_futures).await;
+            for result in delete_book_results {
+                result?;
             }
         } else {
             println!("No books in your collection to download");
